@@ -16,15 +16,25 @@ import (
 )
 
 var (
-	bo = binary.BigEndian
+	bo             = binary.BigEndian
+	errorTruncated = errors.New("Truncated packet")
+	errorInvalid   = errors.New("Invalid packet")
 )
 
 func ParseIPv4(data []byte) (Packet, error) {
 	if len(data) < 20 {
-		return nil, errors.New("Truncated packet")
+		return nil, errorTruncated
 	}
-	ihl := data[0] & 0x0f
-	length := bo.Uint16(data[2:])
+	ihl := int(data[0] & 0x0f)
+	headerLen := ihl * 4
+	length := int(bo.Uint16(data[2:]))
+
+	if headerLen > length {
+		return nil, errorInvalid
+	}
+	if length > len(data) {
+		return nil, errorTruncated
+	}
 
 	return &IPv4{
 		version:  int(data[0] >> 4),
@@ -36,7 +46,7 @@ func ParseIPv4(data []byte) (Packet, error) {
 		protocol: Protocol(data[9]),
 		src:      net.IP(data[12:16]),
 		dst:      net.IP(data[16:20]),
-		data:     data[ihl*4 : length],
+		data:     data[headerLen:length],
 	}, nil
 }
 
