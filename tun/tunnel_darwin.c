@@ -46,23 +46,23 @@ static int tun_create_by_id(char if_name[IFNAMSIZ], unsigned int id)
     if ((fd = socket(PF_SYSTEM, SOCK_DGRAM, SYSPROTO_CONTROL)) == -1) {
         return -1;
     }
-    memset(&ci, 0, sizeof ci);
-    snprintf(ci.ctl_name, sizeof ci.ctl_name, "%s", UTUN_CONTROL_NAME);
+    memset(&ci, 0, sizeof(ci));
+    snprintf(ci.ctl_name, sizeof(ci.ctl_name), "%s", UTUN_CONTROL_NAME);
     if (ioctl(fd, CTLIOCGINFO, &ci)) {
         err = errno;
         (void) close(fd);
         errno = err;
         return -1;
     }
-    memset(&sc, 0, sizeof sc);
+    memset(&sc, 0, sizeof(sc));
     sc = (struct sockaddr_ctl){
         .sc_id      = ci.ctl_id,
-        .sc_len     = sizeof sc,
+        .sc_len     = sizeof(sc),
         .sc_family  = AF_SYSTEM,
         .ss_sysaddr = AF_SYS_CONTROL,
         .sc_unit    = id + 1,
     };
-    if (connect(fd, (struct sockaddr *) &sc, sizeof sc) != 0) {
+    if (connect(fd, (struct sockaddr *) &sc, sizeof(sc)) != 0) {
         err = errno;
         (void) close(fd);
         errno = err;
@@ -132,6 +132,53 @@ tun_read(int fd, void *data, size_t size, int *errno_return)
       {
         *errno_return = errno;
         return -1;
+      }
+    if (ret <= (ssize_t) sizeof(family))
+      return 0;
+
+    return ret - sizeof(family);
+}
+
+ssize_t
+tun_write(int fd, const void *data, size_t size, int *errno_return)
+{
+    uint32_t family;
+    ssize_t  ret;
+
+    *errno_return = 0;
+
+    if (size < 20)
+      return 0;
+
+    switch (*(const uint8_t *) data >> 4)
+      {
+      case 4:
+        family = htonl(AF_INET);
+        break;
+      case 6:
+        family = htonl(AF_INET6);
+        break;
+      default:
+        *errno_return = EINVAL;
+        return -1;
+      }
+    struct iovec iov[2] =
+      {
+       {
+        .iov_base = &family,
+        .iov_len  = sizeof(family),
+       },
+       {
+        .iov_base = (void *) data,
+        .iov_len  = size,
+       },
+      };
+
+    ret = writev(fd, iov, 2);
+    if (ret <= (ssize_t) 0)
+      {
+        *errno_return = errno;
+        return ret;
       }
     if (ret <= (ssize_t) sizeof(family))
       return 0;

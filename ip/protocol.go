@@ -14,6 +14,12 @@ import (
 
 type Protocol uint8
 
+const (
+	ProtoICMP Protocol = 1
+	ProtoTCP  Protocol = 6
+	ProtoUDP  Protocol = 17
+)
+
 func (p Protocol) String() string {
 	name, ok := protocols[p]
 	if ok {

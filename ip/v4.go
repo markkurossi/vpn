@@ -10,16 +10,12 @@ package ip
 
 import (
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"net"
 )
 
 var (
-	bo             = binary.BigEndian
-	errorTruncated = errors.New("Truncated packet")
-	errorInvalid   = errors.New("Invalid packet")
-	errorChecksum  = errors.New("Invalid checksum")
+	bo = binary.BigEndian
 )
 
 func ParseIPv4(data []byte) (Packet, error) {
@@ -71,6 +67,55 @@ func (p *IPv4) String() string {
 	return fmt.Sprintf("IPv4 %s %s->%s", p.protocol, p.src, p.dst)
 }
 
+func (p *IPv4) Copy() Packet {
+	var packet IPv4
+
+	packet = *p
+
+	// Take copy of the data
+	data := make([]byte, len(p.data))
+	copy(data, p.data)
+	packet.data = data
+
+	return &packet
+}
+
+func (p *IPv4) Marshal() []byte {
+	data := make([]byte, 20+len(p.data))
+
+	//  0                   1                   2                   3
+	//  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+	// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+	// |Version|  IHL  |Type of Service|          Total Length         |
+	// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+	// |         Identification        |Flags|      Fragment Offset    |
+	// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+	// |  Time to Live |    Protocol   |         Header Checksum       |
+	// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+	// |                       Source Address                          |
+	// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+	// |                    Destination Address                        |
+	// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+	// |                    Options                    |    Padding    |
+	// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+	data[0] = byte(p.version<<4 | 5)
+	data[1] = byte(p.tos)
+	bo.PutUint16(data[2:], uint16(len(data)))
+	bo.PutUint16(data[4:], p.id)
+	bo.PutUint16(data[6:], (uint16(p.flags)<<13)|(p.offset&0x1fff))
+	data[8] = p.ttl
+	data[9] = byte(p.protocol)
+	copy(data[12:], p.src[0:4])
+	copy(data[16:], p.dst[0:4])
+	copy(data[20:], p.data)
+
+	cks := Checksum(data[0:20])
+	bo.PutUint16(data[10:], cks)
+
+	return data
+}
+
 func (p *IPv4) Version() int {
 	return p.version
 }
@@ -103,10 +148,22 @@ func (p *IPv4) Src() net.IP {
 	return p.src
 }
 
+func (p *IPv4) SetSrc(src net.IP) {
+	p.src = src
+}
+
 func (p *IPv4) Dst() net.IP {
 	return p.dst
 }
 
+func (p *IPv4) SetDst(dst net.IP) {
+	p.dst = dst
+}
+
 func (p *IPv4) Data() []byte {
 	return p.data
+}
+
+func (p *IPv4) SetData(data []byte) {
+	p.data = data
 }

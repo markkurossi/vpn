@@ -38,6 +38,16 @@ func main() {
 			fmt.Printf("%s: packet:\n%s", err, hex.Dump(data))
 			continue
 		}
-		fmt.Printf("Packet: %s\n%s", packet, hex.Dump(packet.Data()))
+		switch packet.Protocol() {
+		case ip.ProtoICMP:
+			response, err := ip.ICMPResponse(packet)
+			if err != nil {
+				fmt.Printf("Failed to create ICMP response: %v\n", err)
+			} else if response != nil {
+				err = tunnel.Write(response.Marshal())
+			}
+		default:
+			fmt.Printf("Packet: %s\n%s", packet, hex.Dump(packet.Data()))
+		}
 	}
 }

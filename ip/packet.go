@@ -15,6 +15,8 @@ import (
 )
 
 type Packet interface {
+	Copy() Packet
+	Marshal() []byte
 	Version() int
 	TOS() int
 	ID() uint16
@@ -23,8 +25,11 @@ type Packet interface {
 	TTL() uint8
 	Protocol() Protocol
 	Src() net.IP
+	SetSrc(src net.IP)
 	Dst() net.IP
+	SetDst(dst net.IP)
 	Data() []byte
+	SetData(data []byte)
 }
 
 func Parse(data []byte) (Packet, error) {

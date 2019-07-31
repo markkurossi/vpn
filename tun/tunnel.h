@@ -23,5 +23,6 @@
 
 int tun_create(char **name_return, int *errno_return);
 ssize_t tun_read(int fd, void *data, size_t size, int *errno_return);
+ssize_t tun_write(int fd, const void *data, size_t size, int *errno_return);
 
 #endif /* not TUNNEL_H */

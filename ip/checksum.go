@@ -8,17 +8,13 @@
 
 package ip
 
-import (
-	"encoding/binary"
-)
-
 func Checksum(data []byte) uint16 {
 	var sum uint32 = 0xffff
 	var i int
 
 	for i = 0; i < len(data); i += 2 {
 		if i+1 < len(data) {
-			sum += uint32(binary.BigEndian.Uint16(data[i:]))
+			sum += uint32(bo.Uint16(data[i:]))
 		} else {
 			sum += uint32(data[i])
 		}

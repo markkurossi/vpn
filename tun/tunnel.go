@@ -57,3 +57,17 @@ func (t *Tunnel) Read() ([]byte, error) {
 
 	return arr, nil
 }
+
+func (t *Tunnel) Write(data []byte) error {
+	var errno C.int
+
+	buf := C.CBytes(data)
+	len := C.tun_write(t.fd, buf, C.ulong(len(data)), &errno)
+	C.free(unsafe.Pointer(buf))
+
+	if len < 0 {
+		return errors.New(C.GoString(C.strerror(errno)))
+	}
+
+	return nil
+}
