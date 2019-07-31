@@ -28,11 +28,6 @@ var icmpTypes = map[ICMPType]string{
 	16: "Information Reply",
 }
 
-type ICMP struct {
-	Packet Packet
-	Type   ICMPType
-}
-
 func ICMPResponse(packet Packet) (Packet, error) {
 	if packet.Protocol() != ProtoICMP {
 		return nil, errors.New("Not ICMP packet")

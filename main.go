@@ -46,6 +46,16 @@ func main() {
 			} else if response != nil {
 				err = tunnel.Write(response.Marshal())
 			}
+
+		case ip.ProtoUDP:
+			udp, err := ip.ParseUDP(packet)
+			if err != nil {
+				fmt.Printf("Failed to parse UDP packet: %v\n", err)
+			} else {
+				fmt.Printf("UDP %d->%d\n%s", udp.Src, udp.Dst,
+					hex.Dump(udp.Data))
+			}
+
 		default:
 			fmt.Printf("Packet: %s\n%s", packet, hex.Dump(packet.Data()))
 		}

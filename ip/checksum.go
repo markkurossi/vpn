@@ -22,8 +22,5 @@ func Checksum(data []byte) uint16 {
 			sum -= 0xffff
 		}
 	}
-	for sum > 0xffff {
-		sum -= 0xffff
-	}
 	return uint16(^sum)
 }

@@ -17,6 +17,7 @@ import (
 type Packet interface {
 	Copy() Packet
 	Marshal() []byte
+	PseudoHeader() []byte
 	Version() int
 	TOS() int
 	ID() uint16

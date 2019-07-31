@@ -32,7 +32,7 @@ func ParseIPv4(data []byte) (Packet, error) {
 	if length > len(data) {
 		return nil, errorTruncated
 	}
-	if Checksum(data) != 0 {
+	if Checksum(data[0:headerLen]) != 0 {
 		return nil, errorChecksum
 	}
 
@@ -112,6 +112,16 @@ func (p *IPv4) Marshal() []byte {
 
 	cks := Checksum(data[0:20])
 	bo.PutUint16(data[10:], cks)
+
+	return data
+}
+
+func (p *IPv4) PseudoHeader() []byte {
+	data := make([]byte, 20)
+	copy(data, p.src)
+	copy(data[4:], p.dst)
+	data[9] = byte(p.protocol)
+	bo.PutUint16(data[10:], uint16(len(p.data)))
 
 	return data
 }
