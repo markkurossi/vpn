@@ -1,0 +1,47 @@
+//
+// checksum_test.go
+//
+// Copyright (c) 2019 Markku Rossi
+//
+// All rights reserved.
+//
+
+package ip
+
+import (
+	"testing"
+)
+
+type ChecksumTest struct {
+	Data     []byte
+	Checksum uint16
+}
+
+var checksumData = []ChecksumTest{
+	{
+		Data: []byte{
+			0x45, 0x00, 0x00, 0x1c, 0x03, 0xde, 0x00, 0x00,
+			0x40, 0x01, 0x00, 0x00, 0x7f, 0x00, 0x00, 0x01,
+			0x7f, 0x00, 0x00, 0x01,
+		},
+		Checksum: 0x7901,
+	},
+	{
+		Data: []byte{
+			0x00, 0x45, 0x1c, 0x00, 0xde, 0x03, 0x00, 0x00,
+			0x01, 0x40, 0x00, 0x00, 0x00, 0x7f, 0x01, 0x00,
+			0x00, 0x7f, 0x01, 0x00,
+		},
+		Checksum: 0x0179,
+	},
+}
+
+func TestChecksum(t *testing.T) {
+	for _, data := range checksumData {
+		chk := Checksum(data.Data)
+		if chk != data.Checksum {
+			t.Errorf("Invalid checksum: got %x, expected %x",
+				chk, data.Checksum)
+		}
+	}
+}

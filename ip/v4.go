@@ -19,6 +19,7 @@ var (
 	bo             = binary.BigEndian
 	errorTruncated = errors.New("Truncated packet")
 	errorInvalid   = errors.New("Invalid packet")
+	errorChecksum  = errors.New("Invalid checksum")
 )
 
 func ParseIPv4(data []byte) (Packet, error) {
@@ -29,11 +30,14 @@ func ParseIPv4(data []byte) (Packet, error) {
 	headerLen := ihl * 4
 	length := int(bo.Uint16(data[2:]))
 
-	if headerLen > length {
+	if headerLen < 20 || headerLen > length {
 		return nil, errorInvalid
 	}
 	if length > len(data) {
 		return nil, errorTruncated
+	}
+	if Checksum(data) != 0 {
+		return nil, errorChecksum
 	}
 
 	return &IPv4{
