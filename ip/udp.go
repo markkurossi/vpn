@@ -25,11 +25,11 @@ func ParseUDP(ip Packet) (*UDP, error) {
 	}
 	data := ip.Data()
 	if len(data) < 8 {
-		return nil, errorTruncated
+		return nil, ErrorTruncated
 	}
 	length := bo.Uint16(data[4:])
 	if length != uint16(len(data)) {
-		return nil, errorInvalid
+		return nil, ErrorInvalid
 	}
 	cks := bo.Uint16(data[6:])
 	if cks != 0 {
@@ -39,7 +39,7 @@ func ParseUDP(ip Packet) (*UDP, error) {
 			phdr = append(phdr, 0)
 		}
 		if Checksum(phdr) != 0 {
-			return nil, errorChecksum
+			return nil, ErrorChecksum
 		}
 	}
 

@@ -34,7 +34,7 @@ func ICMPResponse(packet Packet) (Packet, error) {
 	}
 	data := packet.Data()
 	if len(data) < 1 {
-		return nil, errorTruncated
+		return nil, ErrorTruncated
 	}
 	icmpType := ICMPType(data[0])
 	switch icmpType {
@@ -50,7 +50,7 @@ func ICMPResponse(packet Packet) (Packet, error) {
 		// |     Data ...
 		// +-+-+-+-+-
 		if len(data) < 8 {
-			return nil, errorTruncated
+			return nil, ErrorTruncated
 		}
 		// Set type to Echo Reply
 		data[0] = 0

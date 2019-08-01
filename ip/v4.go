@@ -20,20 +20,20 @@ var (
 
 func ParseIPv4(data []byte) (Packet, error) {
 	if len(data) < 20 {
-		return nil, errorTruncated
+		return nil, ErrorTruncated
 	}
 	ihl := int(data[0] & 0x0f)
 	headerLen := ihl * 4
 	length := int(bo.Uint16(data[2:]))
 
 	if headerLen < 20 || headerLen > length {
-		return nil, errorInvalid
+		return nil, ErrorInvalid
 	}
 	if length > len(data) {
-		return nil, errorTruncated
+		return nil, ErrorTruncated
 	}
 	if Checksum(data[0:headerLen]) != 0 {
-		return nil, errorChecksum
+		return nil, ErrorChecksum
 	}
 
 	return &IPv4{

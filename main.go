@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/markkurossi/vpn/dns"
 	"github.com/markkurossi/vpn/ip"
 	"github.com/markkurossi/vpn/tun"
 )
@@ -51,7 +52,18 @@ func main() {
 			udp, err := ip.ParseUDP(packet)
 			if err != nil {
 				fmt.Printf("Failed to parse UDP packet: %v\n", err)
-			} else {
+				continue
+			}
+			switch udp.Dst {
+			case 53:
+				d, err := dns.Parse(udp)
+				if err != nil {
+					fmt.Printf("Failed to parse DNS packet: %v\n", err)
+					continue
+				}
+				d.Dump()
+
+			default:
 				fmt.Printf("UDP %d->%d\n%s", udp.Src, udp.Dst,
 					hex.Dump(udp.Data))
 			}

@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	errorTruncated = errors.New("Truncated packet")
-	errorInvalid   = errors.New("Invalid packet")
-	errorChecksum  = errors.New("Invalid checksum")
+	ErrorTruncated = errors.New("Truncated packet")
+	ErrorInvalid   = errors.New("Invalid packet")
+	ErrorChecksum  = errors.New("Invalid checksum")
 )
