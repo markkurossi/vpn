@@ -36,6 +36,10 @@ type DNS struct {
 	Additional []*Record
 }
 
+func (d *DNS) Query() bool {
+	return !d.QR
+}
+
 func (d *DNS) Dump() {
 	var qr string
 	if d.QR {
@@ -48,6 +52,15 @@ func (d *DNS) Dump() {
 	for _, q := range d.Questions {
 		fmt.Printf("  Q: %s QTYPE=%04x, QCLASS=%04x\n",
 			q.Labels, q.QTYPE, q.QCLASS)
+	}
+	for _, r := range d.Answers {
+		r.Dump(" AN")
+	}
+	for _, r := range d.Authority {
+		r.Dump(" NS")
+	}
+	for _, r := range d.Additional {
+		r.Dump(" AR")
 	}
 }
 
@@ -67,8 +80,35 @@ type Record struct {
 	Labels Labels
 	TYPE   uint16
 	CLASS  uint16
-	TTL    uint32
+	TTL    TTL
 	RDATA  []byte
+}
+
+type TTL uint32
+
+func (ttl TTL) String() string {
+	if ttl <= 60 {
+		return fmt.Sprintf("%ds", ttl)
+	} else if ttl <= 60*60 {
+		minutes := ttl / 60
+		seconds := ttl % 60
+		return fmt.Sprintf("%dm%ds", minutes, seconds)
+	} else {
+		hours := ttl / 3600
+		minutes := (ttl % 3600) / 60
+		seconds := (ttl % 3600) % 60
+		return fmt.Sprintf("%dh%dm%ds", hours, minutes, seconds)
+	}
+}
+
+func (r *Record) Dump(prefix string) {
+	fmt.Printf("%s: %s TYPE=%04x CLASS=%04x TTL=%s",
+		prefix, r.Labels, r.TYPE, r.CLASS, r.TTL)
+	if len(r.RDATA) == 0 {
+		fmt.Printf("\n")
+	} else {
+		fmt.Printf(" RDATA:\n%s", hex.Dump(r.RDATA))
+	}
 }
 
 type Opcode uint8
@@ -166,20 +206,18 @@ func Parse(packet []byte) (*DNS, error) {
 	flags := bo.Uint16(packet[2:])
 	dns := &DNS{
 		ID:     bo.Uint16(packet),
-		QR:     flags&0x1 == 1,
-		Opcode: Opcode((flags >> 1) & 0xf),
-		AA:     (flags>>5)&0x1 == 1,
-		TC:     (flags>>6)&0x1 == 1,
-		RD:     (flags>>7)&0x1 == 1,
-		RA:     (flags>>8)&0x1 == 1,
-		RCODE:  RCODE((flags >> 12) & 0xf),
+		QR:     (flags>>15)&0x1 == 1,
+		Opcode: Opcode((flags >> 11) & 0xf),
+		AA:     (flags>>10)&0x1 == 1,
+		TC:     (flags>>9)&0x1 == 1,
+		RD:     (flags>>8)&0x1 == 1,
+		RA:     (flags>>7)&0x1 == 1,
+		RCODE:  RCODE(flags & 0xf),
 	}
 	qdcount := int(bo.Uint16(packet[4:]))
 	ancount := int(bo.Uint16(packet[6:]))
 	nscount := int(bo.Uint16(packet[8:]))
 	arcount := int(bo.Uint16(packet[10:]))
-
-	fmt.Printf("DNS: %v\n", dns)
 
 	ofs := 12
 	for i := 0; i < qdcount; i++ {
@@ -189,7 +227,6 @@ func Parse(packet []byte) (*DNS, error) {
 		if err != nil {
 			return nil, err
 		}
-		fmt.Printf("Question: %+v\n", q)
 		dns.Questions = append(dns.Questions, q)
 	}
 	for i := 0; i < ancount; i++ {
@@ -199,7 +236,6 @@ func Parse(packet []byte) (*DNS, error) {
 		if err != nil {
 			return nil, err
 		}
-		fmt.Printf("Answer: %+v\n", r)
 		dns.Answers = append(dns.Answers, r)
 	}
 	for i := 0; i < nscount; i++ {
@@ -209,7 +245,6 @@ func Parse(packet []byte) (*DNS, error) {
 		if err != nil {
 			return nil, err
 		}
-		fmt.Printf("Authority: %+v\n", r)
 		dns.Authority = append(dns.Authority, r)
 	}
 	for i := 0; i < arcount; i++ {
@@ -219,7 +254,6 @@ func Parse(packet []byte) (*DNS, error) {
 		if err != nil {
 			return nil, err
 		}
-		fmt.Printf("Additional: %+v\n", r)
 		dns.Additional = append(dns.Additional, r)
 	}
 
@@ -288,7 +322,7 @@ func parseRecord(data []byte, ofs int) (*Record, int, error) {
 	r.Labels = labels
 	r.TYPE = bo.Uint16(data[ofs:])
 	r.CLASS = bo.Uint16(data[ofs+2:])
-	r.TTL = bo.Uint32(data[ofs+4:])
+	r.TTL = TTL(bo.Uint32(data[ofs+4:]))
 
 	rdlength := int(bo.Uint16(data[ofs+8:]))
 	ofs += 10

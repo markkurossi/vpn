@@ -29,6 +29,21 @@ func main() {
 		log.Fatal(err)
 	}
 
+	client, err := dns.NewClient("8.8.8.8:53")
+	if err != nil {
+		log.Fatal(err)
+	}
+	go func(client *dns.Client) {
+		for msg := range client.C {
+			d, err := dns.Parse(msg)
+			if err != nil {
+				fmt.Printf("Failed to parse DNS packet: %v\n", err)
+				continue
+			}
+			d.Dump()
+		}
+	}(client)
+
 	for {
 		data, err := tunnel.Read()
 		if err != nil {
@@ -56,12 +71,18 @@ func main() {
 			}
 			switch udp.Dst {
 			case 53:
-				d, err := dns.Parse(udp)
+				d, err := dns.Parse(udp.Data)
 				if err != nil {
 					fmt.Printf("Failed to parse DNS packet: %v\n", err)
 					continue
 				}
 				d.Dump()
+				if d.Query() {
+					err := client.Write(udp.Data)
+					if err != nil {
+						fmt.Printf("DNS client write failed: %s\n", err)
+					}
+				}
 
 			default:
 				fmt.Printf("UDP %d->%d\n%s", udp.Src, udp.Dst,
