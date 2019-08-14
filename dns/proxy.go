@@ -49,26 +49,36 @@ func NewProxy(server, address string, out io.Writer) (*Proxy, error) {
 }
 
 var blacklist = []Labels{
-	[]string{"acdn", "adnxs", "com"},
-	[]string{"adx", "adform", "net"},
-	[]string{"static", "hotjar", "com"},
-	[]string{"script", "hotjar", "com"},
-	[]string{"cdn", "krxd", "net"},
-	[]string{"stats", "g", "doubleclick", "net"},
-	[]string{"beacon", "krxd", "net"},
+	[]string{"*", "adnxs", "com"},
+	[]string{"*", "adform", "net"},
+	[]string{"*", "hotjar", "com"},
+	[]string{"*", "krxd", "net"},
+	[]string{"*", "doubleclick", "net"},
+	[]string{"*", "scorecardresearch", "com"},
+	[]string{"*", "ensighten", "com"},
+	[]string{"*", "adsafeprotected", "com"},
+	[]string{"*", "googlesyndication", "com"},
+	[]string{"*", "rubiconproject", "com"},
+	[]string{"*", "adformnet", "akadns", "net"},
+	[]string{"*", "amazon-adsystem", "com"},
+	[]string{"*", "smartadserver", "com"},
+	[]string{"ad", "ilcdn", "fi"},
 }
 
-func (p *Proxy) Query(udp *ip.UDP, data []byte, dns *DNS) error {
+func (p *Proxy) Query(udp *ip.UDP, dns *DNS) error {
 	for _, q := range dns.Questions {
-		fmt.Printf(" ? %s %04x %04x\n",
-			q.Labels, q.QTYPE, q.QCLASS)
 		for _, black := range blacklist {
-			if q.Labels.Equals(black) {
-				fmt.Printf(" => blacklist\n")
-				return nil
+			if q.Labels.Match(black) {
+				if false {
+					fmt.Printf(" * %s (%s)\n", q.Labels, black)
+				}
+				return p.nonExistingDomain(udp, dns)
 			}
 		}
+		fmt.Printf(" ? %s %s %s\n", q.Labels, q.QTYPE, q.QCLASS)
 	}
+
+	data := udp.Data
 
 	if len(data) < HeaderLen {
 		return ip.ErrorTruncated
@@ -109,6 +119,30 @@ idalloc:
 	return p.Client.Write(data)
 }
 
+func (p *Proxy) nonExistingDomain(udp *ip.UDP, q *DNS) error {
+	reply := &DNS{
+		ID:     q.ID,
+		QR:     true,
+		Opcode: q.Opcode,
+		AA:     true, // XXX false in example,
+		TC:     false,
+		RD:     q.RD,
+		RA:     false,
+		RCODE:  NXDomain,
+		//Questions: q.Questions,
+	}
+
+	msg, err := reply.Marshal()
+	if err != nil {
+		return err
+	}
+	udp.Data = msg
+	udp.Swap()
+	_, err = p.Out.Write(udp.Marshal())
+
+	return err
+}
+
 func (p *Proxy) reader() {
 	for msg := range p.Client.C {
 		bak := make([]byte, len(msg))
@@ -119,7 +153,7 @@ func (p *Proxy) reader() {
 			log.Printf("Proxy: failed to parse server message: %s\n", err)
 			continue
 		}
-		if true {
+		if false {
 			dns.Dump()
 		}
 

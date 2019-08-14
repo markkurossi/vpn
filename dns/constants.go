@@ -14,6 +14,11 @@ import (
 
 const (
 	HeaderLen = 12
+	FlagQR    = 0x8000
+	FlagAA    = 0x0400
+	FlagTC    = 0x0200
+	FlagRD    = 0x0100
+	FlagRA    = 0x0080
 )
 
 type ID uint16

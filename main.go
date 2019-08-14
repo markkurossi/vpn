@@ -68,7 +68,7 @@ func main() {
 				}
 				// d.Dump()
 				if d.Query() {
-					err := proxy.Query(udp, udp.Data, d)
+					err := proxy.Query(udp, d)
 					if err != nil {
 						fmt.Printf("DNS client write failed: %s\n", err)
 					}

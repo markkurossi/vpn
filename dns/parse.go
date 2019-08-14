@@ -70,12 +70,27 @@ func (l Labels) String() string {
 	return strings.Join(l, ".")
 }
 
-func (l Labels) Equals(o Labels) bool {
+func (l Labels) Match(o Labels) bool {
+	if o[0] == "*" {
+		// Suffix match.
+		suffix := o[1:]
+		if len(l) < len(suffix) {
+			return false
+		}
+		ofs := len(l) - len(suffix)
+		for idx, label := range suffix {
+			if l[ofs+idx] != label {
+				return false
+			}
+		}
+		return true
+	}
+
 	if len(l) != len(o) {
 		return false
 	}
-	for idx, label := range l {
-		if label != o[idx] {
+	for idx, label := range o {
+		if l[idx] != label {
 			return false
 		}
 	}
@@ -210,12 +225,12 @@ func Parse(packet []byte) (*DNS, error) {
 	flags := bo.Uint16(packet[2:])
 	dns := &DNS{
 		ID:     ID(bo.Uint16(packet)),
-		QR:     (flags>>15)&0x1 == 1,
+		QR:     flags&FlagQR == FlagQR,
 		Opcode: Opcode((flags >> 11) & 0xf),
-		AA:     (flags>>10)&0x1 == 1,
-		TC:     (flags>>9)&0x1 == 1,
-		RD:     (flags>>8)&0x1 == 1,
-		RA:     (flags>>7)&0x1 == 1,
+		AA:     flags&FlagAA == FlagAA,
+		TC:     flags&FlagTC == FlagTC,
+		RD:     flags&FlagRD == FlagRD,
+		RA:     flags&FlagRA == FlagRA,
 		RCODE:  RCODE(flags & 0xf),
 	}
 	qdcount := int(bo.Uint16(packet[4:]))
@@ -383,4 +398,39 @@ func parseLabels(data []byte, ofs int, allowPtr bool) (Labels, int, error) {
 	}
 
 	return nil, ofs, ip.ErrorTruncated
+}
+
+func (dns *DNS) Marshal() ([]byte, error) {
+	data := make([]byte, HeaderLen)
+	bo.PutUint16(data, uint16(dns.ID))
+
+	var flags uint16
+
+	if dns.QR {
+		flags |= FlagQR
+	}
+	flags |= uint16(dns.Opcode) << 11
+	if dns.AA {
+		flags |= FlagAA
+	}
+	if dns.TC {
+		flags |= FlagTC
+	}
+	if dns.RD {
+		flags |= FlagRD
+	}
+	if dns.RA {
+		flags |= FlagRA
+	}
+	flags |= uint16(dns.RCODE)
+
+	bo.PutUint16(data[2:], flags)
+	bo.PutUint16(data[4:], uint16(len(dns.Questions)))
+	bo.PutUint16(data[6:], uint16(len(dns.Answers)))
+	bo.PutUint16(data[8:], uint16(len(dns.Authority)))
+	bo.PutUint16(data[10:], uint16(len(dns.Additional)))
+
+	// XXX
+
+	return data, nil
 }
