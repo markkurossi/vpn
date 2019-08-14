@@ -80,6 +80,10 @@ func (p *IPv4) Copy() Packet {
 	return &packet
 }
 
+func (p *IPv4) Swap() {
+	p.src, p.dst = p.dst, p.src
+}
+
 func (p *IPv4) Marshal() []byte {
 	data := make([]byte, 20+len(p.data))
 
@@ -117,10 +121,11 @@ func (p *IPv4) Marshal() []byte {
 }
 
 func (p *IPv4) PseudoHeader() []byte {
-	data := make([]byte, 20)
+	data := make([]byte, 12)
 	copy(data, p.src)
 	copy(data[4:], p.dst)
 	data[9] = byte(p.protocol)
+
 	bo.PutUint16(data[10:], uint16(len(p.data)))
 
 	return data

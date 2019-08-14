@@ -13,21 +13,21 @@ import (
 )
 
 type Client struct {
-	Address string
-	Conn    net.Conn
-	C       chan []byte
+	Server string
+	Conn   net.Conn
+	C      chan []byte
 }
 
-func NewClient(address string) (*Client, error) {
-	conn, err := net.Dial("udp", address)
+func NewClient(server string) (*Client, error) {
+	conn, err := net.Dial("udp", server)
 	if err != nil {
 		return nil, err
 	}
 
 	client := &Client{
-		Address: address,
-		Conn:    conn,
-		C:       make(chan []byte),
+		Server: server,
+		Conn:   conn,
+		C:      make(chan []byte),
 	}
 	go client.reader()
 	return client, nil

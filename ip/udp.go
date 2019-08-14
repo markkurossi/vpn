@@ -10,6 +10,11 @@ package ip
 
 import (
 	"errors"
+	"fmt"
+)
+
+const (
+	UDPHeaderLen = 8
 )
 
 type UDP struct {
@@ -24,11 +29,24 @@ func ParseUDP(ip Packet) (*UDP, error) {
 		return nil, errors.New("Not UDP packet")
 	}
 	data := ip.Data()
-	if len(data) < 8 {
+	if len(data) < UDPHeaderLen {
 		return nil, ErrorTruncated
 	}
+	//  0      7 8     15 16    23 24    31
+	// +--------+--------+--------+--------+
+	// |     Source      |   Destination   |
+	// |      Port       |      Port       |
+	// +--------+--------+--------+--------+
+	// |                 |                 |
+	// |     Length      |    Checksum     |
+	// +--------+--------+--------+--------+
+	// |
+	// |          data octets ...
+	// +---------------- ...
+
 	length := bo.Uint16(data[4:])
 	if length != uint16(len(data)) {
+		fmt.Printf("Invalid length: header=%d, len=%d\n", length, len(data))
 		return nil, ErrorInvalid
 	}
 	cks := bo.Uint16(data[6:])
@@ -47,6 +65,47 @@ func ParseUDP(ip Packet) (*UDP, error) {
 		IP:   ip,
 		Src:  bo.Uint16(data),
 		Dst:  bo.Uint16(data[2:]),
-		Data: data[8:],
+		Data: data[UDPHeaderLen:],
 	}, nil
+}
+
+func ParseUDPPacket(data []byte) (*UDP, error) {
+	packet, err := Parse(data)
+	if err != nil {
+		return nil, err
+	}
+	switch packet.Protocol() {
+	case ProtoUDP:
+		return ParseUDP(packet)
+
+	default:
+		return nil, fmt.Errorf("Invalid protocol: %s", packet.Protocol())
+	}
+}
+
+func (udp *UDP) Swap() {
+	udp.IP.Swap()
+	udp.Src, udp.Dst = udp.Dst, udp.Src
+}
+
+func (udp *UDP) Marshal() []byte {
+	data := make([]byte, UDPHeaderLen+len(udp.Data))
+
+	bo.PutUint16(data, udp.Src)
+	bo.PutUint16(data[2:], udp.Dst)
+	bo.PutUint16(data[4:], uint16(UDPHeaderLen+len(udp.Data)))
+	copy(data[UDPHeaderLen:], udp.Data)
+
+	udp.IP.SetData(data)
+
+	// Compute checksum
+	phdr := udp.IP.PseudoHeader()
+	phdr = append(phdr, data...)
+	if len(phdr)%2 != 0 {
+		phdr = append(phdr, 0)
+	}
+
+	bo.PutUint16(data[6:], Checksum(phdr))
+
+	return udp.IP.Marshal()
 }

@@ -29,20 +29,10 @@ func main() {
 		log.Fatal(err)
 	}
 
-	client, err := dns.NewClient("8.8.8.8:53")
+	proxy, err := dns.NewProxy("8.8.8.8:53", "192.168.192.254:55", tunnel)
 	if err != nil {
 		log.Fatal(err)
 	}
-	go func(client *dns.Client) {
-		for msg := range client.C {
-			d, err := dns.Parse(msg)
-			if err != nil {
-				fmt.Printf("Failed to parse DNS packet: %v\n", err)
-				continue
-			}
-			d.Dump()
-		}
-	}(client)
 
 	for {
 		data, err := tunnel.Read()
@@ -60,7 +50,7 @@ func main() {
 			if err != nil {
 				fmt.Printf("Failed to create ICMP response: %v\n", err)
 			} else if response != nil {
-				err = tunnel.Write(response.Marshal())
+				_, err = tunnel.Write(response.Marshal())
 			}
 
 		case ip.ProtoUDP:
@@ -78,7 +68,7 @@ func main() {
 				}
 				d.Dump()
 				if d.Query() {
-					err := client.Write(udp.Data)
+					err := proxy.Query(udp, udp.Data)
 					if err != nil {
 						fmt.Printf("DNS client write failed: %s\n", err)
 					}

@@ -16,6 +16,9 @@ import (
 
 type Packet interface {
 	Copy() Packet
+
+	// Swap swaps source and destination IP addresses.
+	Swap()
 	Marshal() []byte
 	PseudoHeader() []byte
 	Version() int

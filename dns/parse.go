@@ -17,12 +17,16 @@ import (
 	"github.com/markkurossi/vpn/ip"
 )
 
+const (
+	HeaderLen = 12
+)
+
 var (
 	bo = binary.BigEndian
 )
 
 type DNS struct {
-	ID         uint16
+	ID         ID
 	QR         bool
 	Opcode     Opcode
 	AA         bool
@@ -35,6 +39,8 @@ type DNS struct {
 	Authority  []*Record
 	Additional []*Record
 }
+
+type ID uint16
 
 func (d *DNS) Query() bool {
 	return !d.QR
@@ -200,12 +206,12 @@ func Parse(packet []byte) (*DNS, error) {
 	// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
 	// |                    ARCOUNT                    |
 	// +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+
-	if len(packet) < 12 {
+	if len(packet) < HeaderLen {
 		return nil, ip.ErrorTruncated
 	}
 	flags := bo.Uint16(packet[2:])
 	dns := &DNS{
-		ID:     bo.Uint16(packet),
+		ID:     ID(bo.Uint16(packet)),
 		QR:     (flags>>15)&0x1 == 1,
 		Opcode: Opcode((flags >> 11) & 0xf),
 		AA:     (flags>>10)&0x1 == 1,
@@ -219,7 +225,7 @@ func Parse(packet []byte) (*DNS, error) {
 	nscount := int(bo.Uint16(packet[8:]))
 	arcount := int(bo.Uint16(packet[10:]))
 
-	ofs := 12
+	ofs := HeaderLen
 	for i := 0; i < qdcount; i++ {
 		var q *Question
 		var err error
