@@ -48,7 +48,28 @@ func NewProxy(server, address string, out io.Writer) (*Proxy, error) {
 	return proxy, nil
 }
 
-func (p *Proxy) Query(udp *ip.UDP, data []byte) error {
+var blacklist = []Labels{
+	[]string{"acdn", "adnxs", "com"},
+	[]string{"adx", "adform", "net"},
+	[]string{"static", "hotjar", "com"},
+	[]string{"script", "hotjar", "com"},
+	[]string{"cdn", "krxd", "net"},
+	[]string{"stats", "g", "doubleclick", "net"},
+	[]string{"beacon", "krxd", "net"},
+}
+
+func (p *Proxy) Query(udp *ip.UDP, data []byte, dns *DNS) error {
+	for _, q := range dns.Questions {
+		fmt.Printf(" ? %s %04x %04x\n",
+			q.Labels, q.QTYPE, q.QCLASS)
+		for _, black := range blacklist {
+			if q.Labels.Equals(black) {
+				fmt.Printf(" => blacklist\n")
+				return nil
+			}
+		}
+	}
+
 	if len(data) < HeaderLen {
 		return ip.ErrorTruncated
 	}
@@ -83,7 +104,6 @@ idalloc:
 	}
 	p.M.Unlock()
 
-	fmt.Printf("ID: %04x\n", id)
 	bo.PutUint16(data, uint16(id))
 
 	return p.Client.Write(data)
@@ -99,7 +119,9 @@ func (p *Proxy) reader() {
 			log.Printf("Proxy: failed to parse server message: %s\n", err)
 			continue
 		}
-		dns.Dump()
+		if true {
+			dns.Dump()
+		}
 
 		var pending *Pending
 		var ok bool

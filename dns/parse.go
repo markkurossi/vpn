@@ -17,10 +17,6 @@ import (
 	"github.com/markkurossi/vpn/ip"
 )
 
-const (
-	HeaderLen = 12
-)
-
 var (
 	bo = binary.BigEndian
 )
@@ -40,8 +36,6 @@ type DNS struct {
 	Additional []*Record
 }
 
-type ID uint16
-
 func (d *DNS) Query() bool {
 	return !d.QR
 }
@@ -56,17 +50,17 @@ func (d *DNS) Dump() {
 	fmt.Printf("DNS %04x: %s %s AA=%v TC=%v RD=%v RA=%v (%s)\n",
 		d.ID, qr, d.Opcode, d.AA, d.TC, d.RD, d.RA, d.RCODE)
 	for _, q := range d.Questions {
-		fmt.Printf("  Q: %s QTYPE=%04x, QCLASS=%04x\n",
+		fmt.Printf("    Q: %s QTYPE=%s, QCLASS=%s\n",
 			q.Labels, q.QTYPE, q.QCLASS)
 	}
 	for _, r := range d.Answers {
-		r.Dump(" AN")
+		r.Dump("  Ans")
 	}
 	for _, r := range d.Authority {
-		r.Dump(" NS")
+		r.Dump(" Auth")
 	}
 	for _, r := range d.Additional {
-		r.Dump(" AR")
+		r.Dump("  Add")
 	}
 }
 
@@ -76,18 +70,44 @@ func (l Labels) String() string {
 	return strings.Join(l, ".")
 }
 
+func (l Labels) Equals(o Labels) bool {
+	if len(l) != len(o) {
+		return false
+	}
+	for idx, label := range l {
+		if label != o[idx] {
+			return false
+		}
+	}
+	return true
+}
+
 type Question struct {
 	Labels Labels
-	QTYPE  uint16
-	QCLASS uint16
+	QTYPE  TYPE
+	QCLASS CLASS
 }
 
 type Record struct {
 	Labels Labels
-	TYPE   uint16
-	CLASS  uint16
+	TYPE   TYPE
+	CLASS  CLASS
 	TTL    TTL
-	RDATA  []byte
+	RDATA  RDATA
+}
+
+type RDATA struct {
+	Data  []byte
+	Start int
+	End   int
+}
+
+func (r RDATA) Len() int {
+	return r.End - r.Start
+}
+
+func (r RDATA) Bytes() []byte {
+	return r.Data[r.Start:r.End]
 }
 
 type TTL uint32
@@ -107,87 +127,65 @@ func (ttl TTL) String() string {
 	}
 }
 
+func space(prefix string) string {
+	var result string
+
+	for i := 0; i < len(prefix); i++ {
+		result += " "
+	}
+	return result
+}
+
 func (r *Record) Dump(prefix string) {
-	fmt.Printf("%s: %s TYPE=%04x CLASS=%04x TTL=%s",
+	fmt.Printf("%s: %s TYPE=%s CLASS=%s TTL=%s\n",
 		prefix, r.Labels, r.TYPE, r.CLASS, r.TTL)
-	if len(r.RDATA) == 0 {
-		fmt.Printf("\n")
-	} else {
-		fmt.Printf(" RDATA:\n%s", hex.Dump(r.RDATA))
+	if r.RDATA.Len() == 0 {
+		return
 	}
-}
+	switch r.TYPE {
+	case A:
+		if r.RDATA.Len() == 4 {
+			data := r.RDATA.Bytes()
+			fmt.Printf("%s  %s=%d.%d.%d.%d\n",
+				space(prefix), r.TYPE, data[0], data[1], data[2], data[3])
+		}
 
-type Opcode uint8
+	case CNAME:
+		labels, ofs, err := parseLabels(r.RDATA.Data, r.RDATA.Start, true)
+		if err != nil || ofs != r.RDATA.End {
+			fmt.Printf("Malformed CNAME:\n%s", hex.Dump(r.RDATA.Bytes()))
+			return
+		}
+		fmt.Printf("%s  %s=%s\n", space(prefix), r.TYPE, labels)
 
-const (
-	QUERY Opcode = iota
-	IQUERY
-	STATUS
-)
+	case SOA:
+		mname, ofs, err := parseLabels(r.RDATA.Data, r.RDATA.Start, true)
+		if err != nil {
+			fmt.Printf("Malformed MNAME:\n%s", hex.Dump(r.RDATA.Bytes()))
+			return
+		}
+		rname, ofs, err := parseLabels(r.RDATA.Data, ofs, true)
+		if err != nil {
+			fmt.Printf("Malformed RNAME:\n%s", hex.Dump(r.RDATA.Bytes()))
+			return
+		}
+		if r.RDATA.End-ofs != 20 {
+			fmt.Printf("Malformed SOA:\n%s", hex.Dump(r.RDATA.Bytes()))
+		}
+		serial := bo.Uint32(r.RDATA.Data[ofs:])
+		refresh := bo.Uint32(r.RDATA.Data[ofs+4:])
+		retry := bo.Uint32(r.RDATA.Data[ofs+8:])
+		expire := bo.Uint32(r.RDATA.Data[ofs+12:])
+		minimum := bo.Uint32(r.RDATA.Data[ofs+16:])
 
-func (oc Opcode) String() string {
-	switch oc {
-	case QUERY:
-		return "QUERY"
-	case IQUERY:
-		return "IQUERY"
-	case STATUS:
-		return "STATUS"
+		fmt.Printf("%s  %s: MNAME=%s RNAME=%s SERIAL=%d REFRESH=%d RETRY=%d EXPIRE=%d MINIMUM=%d\n",
+			space(prefix), r.TYPE, mname, rname, serial, refresh, retry,
+			expire, minimum)
+
 	default:
-		return fmt.Sprintf("{Opcode %d}", oc)
+		fmt.Printf("%s  %s:\n%s", space(prefix), r.TYPE,
+			hex.Dump(r.RDATA.Bytes()))
 	}
-}
-
-type RCODE uint8
-
-const (
-	NoError RCODE = iota
-	FormErr
-	ServFail
-	NXDomain
-	NotImp
-	Refused
-	YXDomain
-	YXRRSet
-	NXRRSet
-	NotAuth
-	NotZone
-	BADVERS
-	BADSIG
-	BADKEY
-	BADTIME
-	BADMODE
-	BADNAME
-	BADALG
-)
-
-var rcodes = map[RCODE]string{
-	NoError:  "No Error",
-	FormErr:  "Format Error",
-	ServFail: "Server Failure",
-	NXDomain: "Non-Existent Domain",
-	NotImp:   "Not Implemented",
-	Refused:  "Query Refused",
-	YXDomain: "Name Exists when it should not",
-	YXRRSet:  "RR Set Exists when it should not",
-	NXRRSet:  "RR Set that should exist does not",
-	NotAuth:  "Server Not Authoritative for zone",
-	NotZone:  "Name not contained in zone",
-	BADVERS:  "Bad OPT Version",
-	BADSIG:   "TSIG Signature Failure",
-	BADKEY:   "Key not recognized",
-	BADTIME:  "Signature out of time window",
-	BADMODE:  "Bad TKEY Mode",
-	BADNAME:  "Duplicate key name",
-	BADALG:   "Algorithm not supported",
-}
-
-func (rc RCODE) String() string {
-	val, ok := rcodes[rc]
-	if ok {
-		return val
-	}
-	return fmt.Sprintf("{RCODE %d}", rc)
 }
 
 func Parse(packet []byte) (*DNS, error) {
@@ -284,8 +282,8 @@ func parseQuestion(data []byte, ofs int) (*Question, int, error) {
 		return nil, 0, ip.ErrorTruncated
 	}
 	q.Labels = labels
-	q.QTYPE = bo.Uint16(data[ofs:])
-	q.QCLASS = bo.Uint16(data[ofs+2:])
+	q.QTYPE = TYPE(bo.Uint16(data[ofs:]))
+	q.QCLASS = CLASS(bo.Uint16(data[ofs+2:]))
 	ofs += 4
 
 	return q, ofs, nil
@@ -326,8 +324,8 @@ func parseRecord(data []byte, ofs int) (*Record, int, error) {
 		return nil, ofs, ip.ErrorTruncated
 	}
 	r.Labels = labels
-	r.TYPE = bo.Uint16(data[ofs:])
-	r.CLASS = bo.Uint16(data[ofs+2:])
+	r.TYPE = TYPE(bo.Uint16(data[ofs:]))
+	r.CLASS = CLASS(bo.Uint16(data[ofs+2:]))
 	r.TTL = TTL(bo.Uint32(data[ofs+4:]))
 
 	rdlength := int(bo.Uint16(data[ofs+8:]))
@@ -336,14 +334,18 @@ func parseRecord(data []byte, ofs int) (*Record, int, error) {
 	if ofs+rdlength > len(data) {
 		return nil, ofs, ip.ErrorTruncated
 	}
-	r.RDATA = data[ofs : ofs+rdlength]
+	r.RDATA = RDATA{
+		Data:  data,
+		Start: ofs,
+		End:   ofs + rdlength,
+	}
 	ofs += rdlength
 
 	return r, ofs, nil
 }
 
-func parseLabels(data []byte, ofs int, allowPtr bool) ([]string, int, error) {
-	var labels []string
+func parseLabels(data []byte, ofs int, allowPtr bool) (Labels, int, error) {
+	var labels Labels
 
 	for ofs < len(data) {
 		if data[ofs]&0xc0 == 0xc0 {

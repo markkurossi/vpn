@@ -66,9 +66,9 @@ func main() {
 					fmt.Printf("Failed to parse DNS packet: %v\n", err)
 					continue
 				}
-				d.Dump()
+				// d.Dump()
 				if d.Query() {
-					err := proxy.Query(udp, udp.Data)
+					err := proxy.Query(udp, udp.Data, d)
 					if err != nil {
 						fmt.Printf("DNS client write failed: %s\n", err)
 					}
