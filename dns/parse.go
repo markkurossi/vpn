@@ -9,6 +9,7 @@
 package dns
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
@@ -430,7 +431,37 @@ func (dns *DNS) Marshal() ([]byte, error) {
 	bo.PutUint16(data[8:], uint16(len(dns.Authority)))
 	bo.PutUint16(data[10:], uint16(len(dns.Additional)))
 
+	for _, q := range dns.Questions {
+		d, err := marshalQuestion(q)
+		if err != nil {
+			return nil, err
+		}
+		data = append(data, d...)
+	}
 	// XXX
 
 	return data, nil
+}
+
+func marshalQuestion(q *Question) ([]byte, error) {
+	buf := new(bytes.Buffer)
+
+	for _, label := range q.Labels {
+		bytes := []byte(label)
+		if len(bytes) > 127 {
+			return nil, fmt.Errorf("Too long label")
+		}
+		buf.WriteByte(byte(len(bytes)))
+		buf.Write(bytes)
+	}
+	// Labels are terminated with an empty element.
+	buf.WriteByte(0)
+
+	var tmp [2]byte
+	bo.PutUint16(tmp[:], uint16(q.QTYPE))
+	buf.Write(tmp[:])
+	bo.PutUint16(tmp[:], uint16(q.QCLASS))
+	buf.Write(tmp[:])
+
+	return buf.Bytes(), nil
 }

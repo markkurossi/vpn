@@ -20,3 +20,10 @@ func TestSuffix(t *testing.T) {
 		t.Errorf("Suffix match failed")
 	}
 }
+
+func TestExact(t *testing.T) {
+	label := Labels([]string{"ad", "markkurossi", "com"})
+	if !label.Match(label) {
+		t.Errorf("Exact match failed")
+	}
+}

@@ -63,13 +63,14 @@ var blacklist = []Labels{
 	[]string{"*", "amazon-adsystem", "com"},
 	[]string{"*", "smartadserver", "com"},
 	[]string{"ad", "ilcdn", "fi"},
+	[]string{"ad", "markkurossi", "com"},
 }
 
 func (p *Proxy) Query(udp *ip.UDP, dns *DNS) error {
 	for _, q := range dns.Questions {
 		for _, black := range blacklist {
 			if q.Labels.Match(black) {
-				if false {
+				if true {
 					fmt.Printf(" * %s (%s)\n", q.Labels, black)
 				}
 				return p.nonExistingDomain(udp, dns)
@@ -121,15 +122,15 @@ idalloc:
 
 func (p *Proxy) nonExistingDomain(udp *ip.UDP, q *DNS) error {
 	reply := &DNS{
-		ID:     q.ID,
-		QR:     true,
-		Opcode: q.Opcode,
-		AA:     true, // XXX false in example,
-		TC:     false,
-		RD:     q.RD,
-		RA:     false,
-		RCODE:  NXDomain,
-		//Questions: q.Questions,
+		ID:        q.ID,
+		QR:        true,
+		Opcode:    q.Opcode,
+		AA:        true, // XXX false in example,
+		TC:        false,
+		RD:        q.RD,
+		RA:        false,
+		RCODE:     NXDomain,
+		Questions: q.Questions,
 	}
 
 	msg, err := reply.Marshal()

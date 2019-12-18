@@ -12,6 +12,8 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log"
+	"os"
+	"os/signal"
 
 	"github.com/markkurossi/vpn/dns"
 	"github.com/markkurossi/vpn/ip"
@@ -19,6 +21,7 @@ import (
 )
 
 func main() {
+	fmt.Printf("Here!\n")
 	tunnel, err := tun.Create()
 	if err != nil {
 		log.Fatal(err)
@@ -34,6 +37,34 @@ func main() {
 		log.Fatal(err)
 	}
 
+	origServers, err := dns.GetServers()
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("Current DNS servers: %v\n", origServers)
+
+	fmt.Printf("Setting proxy DNS server\n")
+	err = dns.SetServers([]string{"192.168.192.254"})
+	if err != nil {
+		log.Fatalf("Failed to set proxy DNS: %s\n", err)
+	}
+	fmt.Printf("Flushing DNS cache\n")
+	err = dns.FlushCache()
+	if err != nil {
+		log.Printf("Failed to flush DNS cache: %s\n", err)
+	}
+
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+
+	go func() {
+		s := <-c
+		fmt.Println("signal", s)
+		dns.SetServers(origServers)
+		os.Exit(0)
+	}()
+
+	fmt.Printf("Processing DNS requests\n")
 	for {
 		data, err := tunnel.Read()
 		if err != nil {
