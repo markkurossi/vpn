@@ -21,7 +21,6 @@ import (
 )
 
 func main() {
-	fmt.Printf("Here!\n")
 	tunnel, err := tun.Create()
 	if err != nil {
 		log.Fatal(err)
