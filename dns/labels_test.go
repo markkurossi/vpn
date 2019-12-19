@@ -27,3 +27,11 @@ func TestExact(t *testing.T) {
 		t.Errorf("Exact match failed")
 	}
 }
+
+func TestHeadGlob(t *testing.T) {
+	label := Labels([]string{"ads", "markkurossi", "com"})
+	pattern := Labels([]string{"ads", "*"})
+	if !label.Match(pattern) {
+		t.Errorf("Head glob match failed")
+	}
+}
