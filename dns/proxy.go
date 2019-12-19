@@ -25,6 +25,7 @@ type Proxy struct {
 	Out     io.Writer
 	M       sync.Mutex
 	Pending map[ID]*Pending
+	Verbose int
 }
 
 type Pending struct {
@@ -63,6 +64,10 @@ var blacklist = []Labels{
 	[]string{"*", "amazon-adsystem", "com"},
 	[]string{"*", "smartadserver", "com"},
 	[]string{"*", "advertising", "com"},
+	[]string{"*", "adserve", "io"},
+	[]string{"*", "moatads", "com"},
+	[]string{"*", "google-analytics", "com"},
+	[]string{"*", "logs", "datadoghq", "eu"},
 	[]string{"ad", "ilcdn", "fi"},
 	[]string{"adservice", "google", "com"},
 	[]string{"targeting", "washpost", "nile", "works"},
@@ -72,13 +77,15 @@ func (p *Proxy) Query(udp *ip.UDP, dns *DNS) error {
 	for _, q := range dns.Questions {
 		for _, black := range blacklist {
 			if q.Labels.Match(black) {
-				if true {
-					fmt.Printf(" * %s (%s)\n", q.Labels, black)
+				if p.Verbose > 1 {
+					fmt.Printf(" \u00d7 %s (%s)\n", q.Labels, black)
 				}
 				return p.nonExistingDomain(udp, dns)
 			}
 		}
-		fmt.Printf(" ? %s %s %s\n", q.Labels, q.QTYPE, q.QCLASS)
+		if p.Verbose > 0 {
+			fmt.Printf(" ? %s %s %s\n", q.Labels, q.QTYPE, q.QCLASS)
+		}
 	}
 
 	data := udp.Data

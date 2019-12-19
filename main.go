@@ -35,6 +35,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	proxy.Verbose = 1
 
 	origServers, err := dns.GetServers()
 	if err != nil {
