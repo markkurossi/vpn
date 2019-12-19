@@ -15,7 +15,7 @@ Start the vpn application with DoH URL. The current implementation is
 a very early prototype supporting only `https://dns.google/dns-query`
 with a big awkward syntax:
 
-    $ sudo ./vpn -blacklist test.bl -doh https://8.8.8.8/dns-query -i
+    $ sudo ./vpn -doh https://8.8.8.8/dns-query
 
 The proper DoH URL parsing will be implemented RSN.
 
@@ -28,6 +28,10 @@ Start the vpn application with a domain blacklist file:
 The `-i` flag starts the application in interactive mode:
 
 ![Interactive ad blocker](adblock.png)
+
+You can also combine ad blocker with DoH:
+
+    $ sudo ./vpn -blacklist test.bl -doh https://8.8.8.8/dns-query -i
 
 ## DNS Server Configuration
 
