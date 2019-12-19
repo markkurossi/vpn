@@ -10,6 +10,7 @@ package main
 
 import (
 	"encoding/hex"
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -21,6 +22,20 @@ import (
 )
 
 func main() {
+	bl := flag.String("blacklist", "", "DNS blacklist")
+	flag.Parse()
+
+	var blacklist []dns.Labels
+	var err error
+
+	if len(*bl) > 0 {
+		blacklist, err = dns.ReadBlacklist(*bl)
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Printf("Blacklist: %v\n", bl)
+	}
+
 	tunnel, err := tun.Create()
 	if err != nil {
 		log.Fatal(err)
@@ -35,7 +50,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	proxy.Verbose = 1
+	proxy.Verbose = 2
+	proxy.Blacklist = blacklist
 
 	origServers, err := dns.GetServers()
 	if err != nil {

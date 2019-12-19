@@ -1,0 +1,32 @@
+# -*- sh -*-
+# Test blacklist.
+
+*.adnxs.com
+*.adform.net
+*.hotjar.com
+*.krxd.net
+*.doubleclick.net
+*.scorecardresearch.com
+*.ensighten.com
+*.adsafeprotected.com
+*.googlesyndication.com
+*.rubiconproject.com
+*.adformnet.akadns.net
+*.amazon-adsystem.com
+*.smartadserver.com
+*.advertising.com
+*.adserve.io
+*.moatads.com
+*.google-analytics.com
+*.logs.datadoghq.eu
+
+*.omtrdc.net
+*.adtlgc.com
+*.cxense.com
+
+ads.yahoo.com
+ad.ilcdn.fi
+ad.turn.com
+adserver.video
+adservice.google.com
+targeting.washpost.nile.works
