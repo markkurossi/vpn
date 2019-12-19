@@ -62,8 +62,10 @@ var blacklist = []Labels{
 	[]string{"*", "adformnet", "akadns", "net"},
 	[]string{"*", "amazon-adsystem", "com"},
 	[]string{"*", "smartadserver", "com"},
+	[]string{"*", "advertising", "com"},
 	[]string{"ad", "ilcdn", "fi"},
-	[]string{"ad", "markkurossi", "com"},
+	[]string{"adservice", "google", "com"},
+	[]string{"targeting", "washpost", "nile", "works"},
 }
 
 func (p *Proxy) Query(udp *ip.UDP, dns *DNS) error {
