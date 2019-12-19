@@ -7,7 +7,7 @@ Start the vpn application with a domain blacklist file:
 
     $ sudo ./vpn -blaclist test.bl -i
 
-The _-i_ flag starts the application in interactive mode:
+The `-i` flag starts the application in interactive mode:
 
 ![Interactive ad blocker](adblock.png)
 
