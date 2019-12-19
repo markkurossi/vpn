@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/signal"
 
+	"github.com/markkurossi/vpn/cli"
 	"github.com/markkurossi/vpn/dns"
 	"github.com/markkurossi/vpn/ip"
 	"github.com/markkurossi/vpn/tun"
@@ -23,7 +24,16 @@ import (
 
 func main() {
 	bl := flag.String("blacklist", "", "DNS blacklist")
+	interactive := flag.Bool("i", false, "Interactive mode")
 	flag.Parse()
+
+	var verbose int
+
+	if *interactive {
+		verbose = 0
+	} else {
+		verbose = 2
+	}
 
 	var blacklist []dns.Labels
 	var err error
@@ -50,8 +60,14 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	proxy.Verbose = 2
+	proxy.Verbose = verbose
 	proxy.Blacklist = blacklist
+
+	if *interactive {
+		events := make(chan dns.Event)
+		proxy.Events = events
+		go cli.EventHandler(events)
+	}
 
 	origServers, err := dns.GetServers()
 	if err != nil {
@@ -113,7 +129,6 @@ func main() {
 					fmt.Printf("Failed to parse DNS packet: %v\n", err)
 					continue
 				}
-				// d.Dump()
 				if d.Query() {
 					err := proxy.Query(udp, d)
 					if err != nil {

@@ -22,6 +22,7 @@ import (
 type Proxy struct {
 	Verbose   int
 	Blacklist []Labels
+	Events    chan Event
 	client    *Client
 	address   string
 	out       io.Writer
@@ -33,6 +34,31 @@ type Pending struct {
 	timestamp time.Time
 	udp       *ip.UDP
 	id        ID
+}
+
+type EventType int
+
+const (
+	EventQuery EventType = iota
+	EventBlock
+)
+
+var eventTypes = map[EventType]string{
+	EventQuery: "?",
+	EventBlock: "'u00d7",
+}
+
+func (t EventType) String() string {
+	name, ok := eventTypes[t]
+	if ok {
+		return name
+	}
+	return fmt.Sprintf("{EventType %d}", t)
+}
+
+type Event struct {
+	Type   EventType
+	Labels Labels
 }
 
 func NewProxy(server, address string, out io.Writer) (*Proxy, error) {
@@ -57,12 +83,14 @@ func (p *Proxy) Query(udp *ip.UDP, dns *DNS) error {
 				if p.Verbose > 1 {
 					fmt.Printf(" \u00d7 %s (%s)\n", q.Labels, black)
 				}
+				p.event(EventBlock, q.Labels)
 				return p.nonExistingDomain(udp, dns)
 			}
 		}
 		if p.Verbose > 0 {
 			fmt.Printf(" ? %s %s %s\n", q.Labels, q.QTYPE, q.QCLASS)
 		}
+		p.event(EventQuery, q.Labels)
 	}
 
 	data := udp.Data
@@ -104,6 +132,16 @@ idalloc:
 	bo.PutUint16(data, uint16(id))
 
 	return p.client.Write(data)
+}
+
+func (p *Proxy) event(t EventType, labels Labels) {
+	if p.Events == nil {
+		return
+	}
+	p.Events <- Event{
+		Type:   t,
+		Labels: labels,
+	}
 }
 
 func (p *Proxy) nonExistingDomain(udp *ip.UDP, q *DNS) error {
