@@ -50,30 +50,6 @@ func NewProxy(server, address string, out io.Writer) (*Proxy, error) {
 	return proxy, nil
 }
 
-var blacklist = []Labels{
-	[]string{"*", "adnxs", "com"},
-	[]string{"*", "adform", "net"},
-	[]string{"*", "hotjar", "com"},
-	[]string{"*", "krxd", "net"},
-	[]string{"*", "doubleclick", "net"},
-	[]string{"*", "scorecardresearch", "com"},
-	[]string{"*", "ensighten", "com"},
-	[]string{"*", "adsafeprotected", "com"},
-	[]string{"*", "googlesyndication", "com"},
-	[]string{"*", "rubiconproject", "com"},
-	[]string{"*", "adformnet", "akadns", "net"},
-	[]string{"*", "amazon-adsystem", "com"},
-	[]string{"*", "smartadserver", "com"},
-	[]string{"*", "advertising", "com"},
-	[]string{"*", "adserve", "io"},
-	[]string{"*", "moatads", "com"},
-	[]string{"*", "google-analytics", "com"},
-	[]string{"*", "logs", "datadoghq", "eu"},
-	[]string{"ad", "ilcdn", "fi"},
-	[]string{"adservice", "google", "com"},
-	[]string{"targeting", "washpost", "nile", "works"},
-}
-
 func (p *Proxy) Query(udp *ip.UDP, dns *DNS) error {
 	for _, q := range dns.Questions {
 		for _, black := range p.Blacklist {
