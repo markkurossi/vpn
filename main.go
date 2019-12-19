@@ -24,6 +24,7 @@ import (
 
 func main() {
 	bl := flag.String("blacklist", "", "DNS blacklist")
+	doh := flag.String("doh", "", "DNS-over-HTTPS URL")
 	interactive := flag.Bool("i", false, "Interactive mode")
 	flag.Parse()
 
@@ -62,6 +63,10 @@ func main() {
 	}
 	proxy.Verbose = verbose
 	proxy.Blacklist = blacklist
+
+	if len(*doh) > 0 {
+		proxy.DoH = dns.NewDoHClient(*doh)
+	}
 
 	if *interactive {
 		events := make(chan dns.Event)

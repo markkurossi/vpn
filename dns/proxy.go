@@ -23,6 +23,7 @@ type Proxy struct {
 	Verbose   int
 	Blacklist []Labels
 	Events    chan Event
+	DoH       *DoHClient
 	client    *Client
 	address   string
 	out       io.Writer
@@ -130,6 +131,15 @@ idalloc:
 	p.m.Unlock()
 
 	bo.PutUint16(data, uint16(id))
+
+	if p.DoH != nil {
+		resp, err := p.DoH.Do(data)
+		if err != nil {
+			return err
+		}
+		p.client.C <- resp
+		return nil
+	}
 
 	return p.client.Write(data)
 }
