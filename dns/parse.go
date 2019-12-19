@@ -72,30 +72,33 @@ func (l Labels) String() string {
 }
 
 func (l Labels) Match(o Labels) bool {
-	if o[0] == "*" {
-		// Suffix match.
-		suffix := o[1:]
-		if len(l) < len(suffix) {
-			return false
-		}
-		ofs := len(l) - len(suffix)
-		for idx, label := range suffix {
-			if l[ofs+idx] != label {
-				return false
-			}
-		}
-		return true
-	}
+	return glob(l, o)
+}
 
-	if len(l) != len(o) {
-		return false
-	}
-	for idx, label := range o {
-		if l[idx] != label {
+func glob(value, pattern []string) bool {
+	for {
+		if len(pattern) == 0 {
+			if len(value) == 0 {
+				return true
+			}
+			return false
+		} else if len(value) == 0 {
 			return false
 		}
+		if pattern[0] == "*" {
+			for i := 0; i < len(value)-len(pattern)+2; i++ {
+				if glob(pattern[1:], value[i:]) {
+					return true
+				}
+			}
+			return false
+		}
+		if pattern[0] != value[0] {
+			return false
+		}
+		pattern = pattern[1:]
+		value = value[1:]
 	}
-	return true
 }
 
 type Question struct {
