@@ -23,7 +23,7 @@ The proper DoH URL parsing will be implemented RSN.
 
 Start the vpn application with a domain blacklist file:
 
-    $ sudo ./vpn -blaclist test.bl -i
+    $ sudo ./vpn -blacklist test.bl -i
 
 The `-i` flag starts the application in interactive mode:
 
