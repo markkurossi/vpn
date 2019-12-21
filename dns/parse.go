@@ -67,6 +67,10 @@ func (d *DNS) Dump() {
 
 type Labels []string
 
+func NewLabels(name string) Labels {
+	return strings.Split(name, ".")
+}
+
 func (l Labels) String() string {
 	return strings.Join(l, ".")
 }

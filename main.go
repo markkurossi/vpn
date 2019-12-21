@@ -65,7 +65,11 @@ func main() {
 	proxy.Blacklist = blacklist
 
 	if len(*doh) > 0 {
-		proxy.DoH = dns.NewDoHClient(*doh)
+		doh, err := dns.NewDoHClient(*doh)
+		if err != nil {
+			log.Fatal(err)
+		}
+		proxy.DoH = doh
 	}
 
 	if *interactive {
@@ -135,10 +139,13 @@ func main() {
 					continue
 				}
 				if d.Query() {
-					err := proxy.Query(udp, d)
-					if err != nil {
-						fmt.Printf("DNS client write failed: %s\n", err)
-					}
+					go func() {
+						// XXX Check proxy reentrancy.
+						err := proxy.Query(udp, d)
+						if err != nil {
+							fmt.Printf("DNS client write failed: %s\n", err)
+						}
+					}()
 				}
 
 			default:

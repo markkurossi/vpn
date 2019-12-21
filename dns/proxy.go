@@ -20,15 +20,16 @@ import (
 )
 
 type Proxy struct {
-	Verbose   int
-	Blacklist []Labels
-	Events    chan Event
-	DoH       *DoHClient
-	client    *Client
-	address   string
-	out       io.Writer
-	m         sync.Mutex
-	pending   map[ID]*Pending
+	Verbose     int
+	Blacklist   []Labels
+	Events      chan Event
+	DoH         *DoHClient
+	chResponses chan []byte
+	client      *UDPClient
+	address     string
+	out         io.Writer
+	m           sync.Mutex
+	pending     map[ID]*Pending
 }
 
 type Pending struct {
@@ -63,21 +64,25 @@ type Event struct {
 }
 
 func NewProxy(server, address string, out io.Writer) (*Proxy, error) {
-	client, err := NewClient(server)
+	ch := make(chan []byte)
+	client, err := NewUDPClient(server, ch)
 	if err != nil {
 		return nil, err
 	}
 	proxy := &Proxy{
-		client:  client,
-		address: address,
-		out:     out,
-		pending: make(map[ID]*Pending),
+		chResponses: ch,
+		client:      client,
+		address:     address,
+		out:         out,
+		pending:     make(map[ID]*Pending),
 	}
 	go proxy.reader()
 	return proxy, nil
 }
 
 func (p *Proxy) Query(udp *ip.UDP, dns *DNS) error {
+	var qDoHServer bool
+
 	for _, q := range dns.Questions {
 		for _, black := range p.Blacklist {
 			if q.Labels.Match(black) {
@@ -88,8 +93,15 @@ func (p *Proxy) Query(udp *ip.UDP, dns *DNS) error {
 				return p.nonExistingDomain(udp, dns)
 			}
 		}
+		if p.DoH != nil && p.DoH.IsServer(q.Labels.String()) {
+			qDoHServer = true
+		}
 		if p.Verbose > 0 {
-			fmt.Printf(" ? %s %s %s\n", q.Labels, q.QTYPE, q.QCLASS)
+			marker := "?"
+			if qDoHServer {
+				marker = "\u00ae"
+			}
+			fmt.Printf(" %s %s %s %s\n", marker, q.Labels, q.QTYPE, q.QCLASS)
 		}
 		p.event(EventQuery, q.Labels)
 	}
@@ -132,12 +144,16 @@ idalloc:
 
 	bo.PutUint16(data, uint16(id))
 
-	if p.DoH != nil {
+	if qDoHServer && len(dns.Questions) > 1 {
+		return fmt.Errorf("Quering DoH server with multiple questions")
+	}
+
+	if p.DoH != nil && !qDoHServer {
 		resp, err := p.DoH.Do(data)
 		if err != nil {
 			return err
 		}
-		p.client.C <- resp
+		p.chResponses <- resp
 		return nil
 	}
 
