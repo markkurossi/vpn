@@ -11,13 +11,9 @@ application independent network filters, for example:
 
 ## DNS-over-HTTPS client
 
-Start the vpn application with DoH URL. The current implementation is
-a very early prototype supporting only `https://dns.google/dns-query`
-with a big awkward syntax:
+Start the vpn application with DoH URL:
 
-    $ sudo ./vpn -doh https://8.8.8.8/dns-query
-
-The proper DoH URL parsing will be implemented RSN.
+    $ sudo ./vpn -doh https://dns.google/dns-query
 
 ## Ad Blocker
 
