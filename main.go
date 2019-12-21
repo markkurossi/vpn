@@ -140,7 +140,6 @@ func main() {
 				}
 				if d.Query() {
 					go func() {
-						// XXX Check proxy reentrancy.
 						err := proxy.Query(udp, d)
 						if err != nil {
 							fmt.Printf("DNS client write failed: %s\n", err)
