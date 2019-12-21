@@ -27,7 +27,7 @@ The `-i` flag starts the application in interactive mode:
 
 You can also combine ad blocker with DoH:
 
-    $ sudo ./vpn -blacklist test.bl -doh https://8.8.8.8/dns-query -i
+    $ sudo ./vpn -blacklist test.bl -doh https://dns.google/dns-query -i
 
 ## DNS Server Configuration
 
