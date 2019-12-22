@@ -6,7 +6,8 @@
 // All rights reserved.
 //
 
-// Tunnel code by Frank Denis with the following original license:
+// Tunnel code by Frank Denis (https://github.com/jedisct1/dsvpn) with
+// the following original license:
 //
 // MIT License
 //
