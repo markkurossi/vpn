@@ -29,25 +29,31 @@ You can also combine ad blocker with DoH:
 
     $ sudo ./vpn -blacklist test.bl -doh https://dns.google/dns-query -i
 
-## DNS Server Configuration
+## References
 
-### Query DNS Servers
+### Tunnel code by Frank Denis
+
+The tunnel device management code is taken from Frank Denis' project [A Dead Simple VPN](https://github.com/jedisct1/dsvpn).
+
+### DNS Server Configuration
+
+Mac OSX configuration is from the Internet. The DNS cache flushing instructions were borrowed from [help.dreamhost.com](https://help.dreamhost.com/hc/en-us/articles/214981288-Flushing-your-DNS-cache-in-Mac-OS-X-and-Linux).
+
+#### Query DNS Servers
 
     $ scutil --dns | grep nameserver
 
-### Set DNS Servers
+#### Set DNS Servers
 
     $ networksetup -setdnsservers Wi-Fi 192.168.192.254
     $ networksetup -setdnsservers Wi-Fi 192.168.99.1
 
-### Flush DNS Cache
+#### Flush DNS Cache
 
-This information is from [help.dreamhost.com](https://help.dreamhost.com/hc/en-us/articles/214981288-Flushing-your-DNS-cache-in-Mac-OS-X-and-Linux).
-
-#### OSX 12 (Sierra) and later
+##### OSX 12 (Sierra) and later
 
     $ sudo killall -HUP mDNSResponder; sudo killall mDNSResponderHelper; sudo dscacheutil -flushcache
 
-#### OS X 11 (El Capitan) and OS X 12 (Sierra)
+##### OS X 11 (El Capitan) and OS X 12 (Sierra)
 
     $ sudo killall -HUP mDNSResponder
