@@ -15,6 +15,10 @@ Start the vpn application with DoH URL:
 
     $ sudo ./vpn -doh https://dns.google/dns-query
 
+The DoH proxy implements the DNS request padding strategy, defined in
+[RFC 8467](https://tools.ietf.org/html/rfc8467). If your DoH server
+does not support padding, you can disable it with the `-nopad` option.
+
 ## Ad Blocker
 
 Start the vpn application with a domain blacklist file:
@@ -46,7 +50,7 @@ Mac OSX configuration is from the Internet. The DNS cache flushing instructions 
 #### Set DNS Servers
 
     $ networksetup -setdnsservers Wi-Fi 192.168.192.254
-    $ networksetup -setdnsservers Wi-Fi 192.168.99.1
+    $ networksetup -setdnsservers Wi-Fi empty
 
 #### Flush DNS Cache
 
