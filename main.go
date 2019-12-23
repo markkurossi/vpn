@@ -25,6 +25,7 @@ import (
 func main() {
 	bl := flag.String("blacklist", "", "DNS blacklist")
 	doh := flag.String("doh", "", "DNS-over-HTTPS URL")
+	nopad := flag.Bool("nopad", false, "Do not PAD DoH requests")
 	interactive := flag.Bool("i", false, "Interactive mode")
 	flag.Parse()
 
@@ -71,6 +72,7 @@ func main() {
 		}
 		proxy.DoH = doh
 	}
+	proxy.NoPad = *nopad
 
 	if *interactive {
 		events := make(chan dns.Event)

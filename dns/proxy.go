@@ -10,6 +10,7 @@ package dns
 
 import (
 	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"log"
@@ -24,6 +25,7 @@ type Proxy struct {
 	Blacklist   []Labels
 	Events      chan Event
 	DoH         *DoHClient
+	NoPad       bool
 	chResponses chan []byte
 	client      *UDPClient
 	address     string
@@ -121,6 +123,54 @@ func (p *Proxy) Query(udp *ip.UDP, dns *DNS) error {
 	if len(data) < HeaderLen {
 		return ip.ErrorTruncated
 	}
+
+	// RFC 8467 padding.
+	if !p.NoPad && p.DoH != nil && !qDoHServer {
+		dataLen := len(data)
+
+		// Does the request have OPT record?
+		opt := dns.GetAdditional(OPT)
+		if opt == nil {
+			// Add OPT record.
+			opt = &Record{
+				TYPE:  OPT,
+				CLASS: 4096,
+				TTL:   0,
+			}
+			dns.Additional = append(dns.Additional, opt)
+			dataLen += 11
+		}
+		// Does the OPT record have a padding?
+		pad := opt.HasOpt(OptPadding)
+		if pad == nil {
+			dataLen += 4
+			// Pad to the closest multiple of 128 octects.
+			if dataLen%128 != 0 {
+				padLen := 128 - dataLen%128
+
+				old := opt.RDATA.Len()
+				rdata := make([]byte, old+4+padLen)
+				copy(rdata, opt.RDATA.Bytes())
+
+				bo.PutUint16(rdata[old:], uint16(OptPadding))
+				bo.PutUint16(rdata[old+2:], uint16(padLen))
+
+				opt.RDATA.Data = rdata
+				opt.RDATA.Start = 0
+				opt.RDATA.End = len(rdata)
+			}
+
+			// Marshal padded message.
+			data, err = dns.Marshal()
+			if err != nil {
+				return err
+			}
+			if p.Verbose > 2 {
+				fmt.Printf("Padded query:\n%s", hex.Dump(data))
+			}
+		}
+	}
+
 	pending := &Pending{
 		timestamp: time.Now(),
 		udp:       udp,
@@ -214,7 +264,7 @@ func (p *Proxy) reader() {
 			log.Printf("Proxy: failed to parse server message: %s\n", err)
 			continue
 		}
-		if false {
+		if p.Verbose > 2 {
 			dns.Dump()
 		}
 

@@ -40,6 +40,17 @@ func (d *DNS) Query() bool {
 	return !d.QR
 }
 
+// GetAdditional gets the additional record of the specified type. The
+// function returns nil if the additional record is not found.
+func (d *DNS) GetAdditional(t TYPE) *Record {
+	for _, r := range d.Additional {
+		if r.TYPE == t {
+			return r
+		}
+	}
+	return nil
+}
+
 func (d *DNS) Dump() {
 	var qr string
 	if d.QR {
@@ -230,7 +241,8 @@ func (r *Record) Dump(prefix string) {
 					code, length, hex.Dump(data))
 				break
 			}
-			fmt.Printf("%s  %s:\n%s", space(prefix), code, hex.Dump(data))
+			fmt.Printf("%s  %s:\n%s", space(prefix), code,
+				hex.Dump(data[:length]))
 			data = data[length:]
 		}
 
@@ -238,6 +250,29 @@ func (r *Record) Dump(prefix string) {
 		fmt.Printf("%s  %s:\n%s", space(prefix), r.TYPE,
 			hex.Dump(r.RDATA.Bytes()))
 	}
+}
+
+func (r *Record) HasOpt(code OptCode) []byte {
+	if r.TYPE != OPT {
+		return nil
+	}
+	data := r.RDATA.Bytes()
+	for len(data) > 0 {
+		if len(data) < 4 {
+			return nil
+		}
+		c := OptCode(bo.Uint16(data))
+		l := int(bo.Uint16(data[2:]))
+		data = data[4:]
+		if l > len(data) {
+			return nil
+		}
+		if c == code {
+			return data[:l]
+		}
+		data = data[l:]
+	}
+	return nil
 }
 
 func Parse(packet []byte) (*DNS, error) {
