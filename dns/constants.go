@@ -323,3 +323,55 @@ func (c CLASS) String() string {
 	}
 	return fmt.Sprintf("{CLASS %d}", c)
 }
+
+type OptCode uint16
+
+const (
+	OptLLQ              OptCode = iota + 1 // RFC-sekar-dns-llq-06
+	OptUL                                  // http://files.dns-sd.org/draft-sekar-dns-ul.txt
+	OptNSID                                // RFC5001
+	OptReserved                            // draft-cheshire-edns0-owner-option
+	OptDAU                                 // RFC6975
+	OptDHU                                 // RFC6975
+	OptN3U                                 // RFC6975
+	OptEDNSClientSubnet                    // RFC7871
+	OptEDNSExpire                          // RFC7314
+	OptCOOKIE                              // RFC7873
+	OptEDNSTCPKeepalive                    // RFC7828
+	OptPadding                             // RFC7830
+	OptCHAIN                               // RFC7901
+	OptEDNSKeyTag                          // RFC8145
+	_
+	OptEDNSClientTag //	draft-bellis-dnsop-edns-tags
+	OptEDNSServerTag //	draft-bellis-dnsop-edns-tags
+
+	OptDeviceID OptCode = 26946
+)
+
+var opts = map[OptCode]string{
+	OptLLQ:              "LLQ",
+	OptUL:               "UL",
+	OptNSID:             "NSID",
+	OptReserved:         "Reserved",
+	OptDAU:              "DAU",
+	OptDHU:              "DHU",
+	OptN3U:              "N3U",
+	OptEDNSClientSubnet: "edns-client-subnet",
+	OptEDNSExpire:       "EDNS Expire",
+	OptCOOKIE:           "COOKIE",
+	OptEDNSTCPKeepalive: "edns-tcp-keepalive",
+	OptPadding:          "Padding",
+	OptCHAIN:            "CHAIN",
+	OptEDNSKeyTag:       "edns-key-tag",
+	OptEDNSClientTag:    "EDNS-Client-Tag",
+	OptEDNSServerTag:    "EDNS-Server-Tag",
+	OptDeviceID:         "DeviceID",
+}
+
+func (opt OptCode) String() string {
+	name, ok := opts[opt]
+	if ok {
+		return name
+	}
+	return fmt.Sprintf("{OptCode %d}", opt)
+}

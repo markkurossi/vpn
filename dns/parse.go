@@ -9,7 +9,6 @@
 package dns
 
 import (
-	"bytes"
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
@@ -89,16 +88,27 @@ func glob(value, pattern []string) bool {
 		} else if len(value) == 0 {
 			return false
 		}
-		if pattern[0] == "*" {
+		switch pattern[0] {
+		case "*":
+			for i := 1; i < len(value)-len(pattern)+2; i++ {
+				if glob(pattern[1:], value[i:]) {
+					return true
+				}
+			}
+			return false
+
+		case "**":
 			for i := 0; i < len(value)-len(pattern)+2; i++ {
 				if glob(pattern[1:], value[i:]) {
 					return true
 				}
 			}
 			return false
-		}
-		if pattern[0] != value[0] {
-			return false
+
+		default:
+			if pattern[0] != value[0] {
+				return false
+			}
 		}
 		pattern = pattern[1:]
 		value = value[1:]
@@ -204,6 +214,25 @@ func (r *Record) Dump(prefix string) {
 		fmt.Printf("%s  %s: MNAME=%s RNAME=%s SERIAL=%d REFRESH=%d RETRY=%d EXPIRE=%d MINIMUM=%d\n",
 			space(prefix), r.TYPE, mname, rname, serial, refresh, retry,
 			expire, minimum)
+
+	case OPT:
+		data := r.RDATA.Bytes()
+		for len(data) > 0 {
+			if len(data) < 4 {
+				fmt.Printf("Truncated option:\n%s", hex.Dump(data))
+				break
+			}
+			code := OptCode(bo.Uint16(data))
+			length := int(bo.Uint16(data[2:]))
+			data = data[4:]
+			if length > len(data) {
+				fmt.Printf("Truncated option %s: length=%d\n%s",
+					code, length, hex.Dump(data))
+				break
+			}
+			fmt.Printf("%s  %s:\n%s", space(prefix), code, hex.Dump(data))
+			data = data[length:]
+		}
 
 	default:
 		fmt.Printf("%s  %s:\n%s", space(prefix), r.TYPE,
@@ -406,69 +435,4 @@ func parseLabels(data []byte, ofs int, allowPtr bool) (Labels, int, error) {
 	}
 
 	return nil, ofs, ip.ErrorTruncated
-}
-
-func (dns *DNS) Marshal() ([]byte, error) {
-	data := make([]byte, HeaderLen)
-	bo.PutUint16(data, uint16(dns.ID))
-
-	var flags uint16
-
-	if dns.QR {
-		flags |= FlagQR
-	}
-	flags |= uint16(dns.Opcode) << 11
-	if dns.AA {
-		flags |= FlagAA
-	}
-	if dns.TC {
-		flags |= FlagTC
-	}
-	if dns.RD {
-		flags |= FlagRD
-	}
-	if dns.RA {
-		flags |= FlagRA
-	}
-	flags |= uint16(dns.RCODE)
-
-	bo.PutUint16(data[2:], flags)
-	bo.PutUint16(data[4:], uint16(len(dns.Questions)))
-	bo.PutUint16(data[6:], uint16(len(dns.Answers)))
-	bo.PutUint16(data[8:], uint16(len(dns.Authority)))
-	bo.PutUint16(data[10:], uint16(len(dns.Additional)))
-
-	for _, q := range dns.Questions {
-		d, err := marshalQuestion(q)
-		if err != nil {
-			return nil, err
-		}
-		data = append(data, d...)
-	}
-	// XXX
-
-	return data, nil
-}
-
-func marshalQuestion(q *Question) ([]byte, error) {
-	buf := new(bytes.Buffer)
-
-	for _, label := range q.Labels {
-		bytes := []byte(label)
-		if len(bytes) > 127 {
-			return nil, fmt.Errorf("Too long label")
-		}
-		buf.WriteByte(byte(len(bytes)))
-		buf.Write(bytes)
-	}
-	// Labels are terminated with an empty element.
-	buf.WriteByte(0)
-
-	var tmp [2]byte
-	bo.PutUint16(tmp[:], uint16(q.QTYPE))
-	buf.Write(tmp[:])
-	bo.PutUint16(tmp[:], uint16(q.QCLASS))
-	buf.Write(tmp[:])
-
-	return buf.Bytes(), nil
 }

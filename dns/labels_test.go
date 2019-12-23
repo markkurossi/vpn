@@ -35,3 +35,23 @@ func TestHeadGlob(t *testing.T) {
 		t.Errorf("Head glob match failed")
 	}
 }
+
+func TestNonEmptyGlob(t *testing.T) {
+	label := Labels([]string{"ads", "markkurossi", "com"})
+	pattern := Labels([]string{"*", "markkurossi", "com"})
+	if !label.Match(pattern) {
+		t.Errorf("Glob match failed")
+	}
+}
+
+func TestEmptyGlob(t *testing.T) {
+	label := Labels([]string{"markkurossi", "com"})
+	pattern := Labels([]string{"*", "markkurossi", "com"})
+	if label.Match(pattern) {
+		t.Errorf("Empty glob match failed")
+	}
+	pattern = Labels([]string{"**", "markkurossi", "com"})
+	if !label.Match(pattern) {
+		t.Errorf("Empty glob match failed")
+	}
+}

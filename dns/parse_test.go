@@ -159,6 +159,25 @@ var testPackets = [][]byte{
 	},
 }
 
+func parseDNS(t *testing.T, data []byte) *DNS {
+	dns, err := Parse(data)
+	if err != nil {
+		t.Errorf("Failed to parse packet: %v", err)
+		return nil
+	}
+	ndata, err := dns.Marshal()
+	if err != nil {
+		t.Errorf("Failed to encode parsed packet: %v", err)
+		return nil
+	}
+	_, err = Parse(ndata)
+	if err != nil {
+		t.Errorf("Failed to parse encoded packet: %v", err)
+		return nil
+	}
+	return dns
+}
+
 func TestParse(t *testing.T) {
 	for _, data := range testPackets {
 		packet, err := ip.Parse(data)
@@ -172,11 +191,8 @@ func TestParse(t *testing.T) {
 			continue
 		}
 
-		dns, err := Parse(udp.Data)
-		if err != nil {
-			t.Errorf("Failed to parse packet: %v", err)
-		}
-		if false {
+		dns := parseDNS(t, udp.Data)
+		if false && dns != nil {
 			dns.Dump()
 		}
 	}
@@ -215,14 +231,24 @@ var testDNSMsgs = [][]byte{
 		0xb8, 0xab, 0xcd, 0x00, 0x12, 0x00, 0x01, 0x00,
 		0x02, 0x00, 0x03, 0x00, 0x04,
 	},
+	// EDNS(0) Padding Option.
+	[]byte{
+		0x00, 0x00, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x01, 0x03, 0x77, 0x77, 0x77,
+		0x07, 0x65, 0x78, 0x61, 0x6D, 0x70, 0x6C, 0x65,
+		0x03, 0x63, 0x6F, 0x6D, 0x00, 0x00, 0x02, 0x00,
+		0x01, 0x00, 0x00, 0x29, 0x10, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x10, 0x00, 0x08, 0x00, 0x04,
+		0x00, 0x01, 0x00, 0x00, 0x00, 0x0C, 0x00, 0x04,
+		0x00, 0x00, 0x00, 0x00,
+	},
 }
 
 func TestParseDNS(t *testing.T) {
 	for _, data := range testDNSMsgs {
-		dns, err := Parse(data)
-		if err != nil {
-			t.Errorf("Failed to parse packet: %v", err)
+		dns := parseDNS(t, data)
+		if dns != nil {
+			dns.Dump()
 		}
-		dns.Dump()
 	}
 }
