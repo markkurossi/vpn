@@ -106,7 +106,17 @@ func (p *Proxy) Query(udp *ip.UDP, dns *DNS) error {
 		p.event(EventQuery, q.Labels)
 	}
 
-	data := udp.Data
+	var data []byte
+	var err error
+
+	if false {
+		data = udp.Data
+	} else {
+		data, err = dns.Marshal()
+		if err != nil {
+			return err
+		}
+	}
 
 	if len(data) < HeaderLen {
 		return ip.ErrorTruncated
