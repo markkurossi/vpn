@@ -28,7 +28,6 @@ type Proxy struct {
 	NoPad       bool
 	chResponses chan []byte
 	client      *UDPClient
-	address     string
 	out         io.Writer
 	m           sync.Mutex
 	pending     map[ID]*Pending
@@ -65,7 +64,7 @@ type Event struct {
 	Labels Labels
 }
 
-func NewProxy(server, address string, out io.Writer) (*Proxy, error) {
+func NewProxy(server string, out io.Writer) (*Proxy, error) {
 	ch := make(chan []byte)
 	client, err := NewUDPClient(server, ch)
 	if err != nil {
@@ -74,7 +73,6 @@ func NewProxy(server, address string, out io.Writer) (*Proxy, error) {
 	proxy := &Proxy{
 		chResponses: ch,
 		client:      client,
-		address:     address,
 		out:         out,
 		pending:     make(map[ID]*Pending),
 	}

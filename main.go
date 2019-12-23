@@ -25,16 +25,14 @@ import (
 func main() {
 	bl := flag.String("blacklist", "", "DNS blacklist")
 	doh := flag.String("doh", "", "DNS-over-HTTPS URL")
+	srv := flag.String("dns", "", "DNS server to use (default to system DNS)")
 	nopad := flag.Bool("nopad", false, "Do not PAD DoH requests")
 	interactive := flag.Bool("i", false, "Interactive mode")
+	verboseFlag := flag.Int("v", 0, "Verbose output")
 	flag.Parse()
 
-	var verbose int
-
 	if *interactive {
-		verbose = 0
-	} else {
-		verbose = 2
+		*verboseFlag = 0
 	}
 
 	var blacklist []dns.Labels
@@ -48,6 +46,19 @@ func main() {
 		fmt.Printf("Blacklist: %v\n", bl)
 	}
 
+	origServers, err := dns.GetServers()
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("Current DNS servers: %v\n", origServers)
+
+	if len(*srv) == 0 {
+		if len(origServers) == 0 {
+			log.Fatal("DNS server not set and could not get system DNS\n")
+		}
+		*srv = origServers[0]
+	}
+
 	tunnel, err := tun.Create()
 	if err != nil {
 		log.Fatal(err)
@@ -58,11 +69,14 @@ func main() {
 		log.Fatal(err)
 	}
 
-	proxy, err := dns.NewProxy("8.8.8.8:53", "192.168.192.254:55", tunnel)
+	proxyAddr := fmt.Sprintf("%s:53", *srv)
+	fmt.Printf("Starting proxy with DNS server %s\n", proxyAddr)
+
+	proxy, err := dns.NewProxy(proxyAddr, tunnel)
 	if err != nil {
 		log.Fatal(err)
 	}
-	proxy.Verbose = verbose
+	proxy.Verbose = *verboseFlag
 	proxy.Blacklist = blacklist
 
 	if len(*doh) > 0 {
@@ -79,12 +93,6 @@ func main() {
 		proxy.Events = events
 		go cli.EventHandler(events)
 	}
-
-	origServers, err := dns.GetServers()
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Printf("Current DNS servers: %v\n", origServers)
 
 	fmt.Printf("Setting proxy DNS server\n")
 	err = dns.SetServers([]string{"192.168.192.254"})
