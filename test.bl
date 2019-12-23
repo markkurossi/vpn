@@ -1,33 +1,51 @@
 # -*- sh -*-
 # Test blacklist.
 
+*.aaxads.com
+*.adap.tv
 *.adform.net
 *.adformnet.akadns.net
 *.adnxs.com
+*.adroll.com
 *.adsafeprotected.com
 *.adserve.io
 *.adtlgc.com
 *.advertising.com
 *.amazon-adsystem.com
+*.avantisvideo.com
 *.cxense.com
 *.doubleclick.net
+*.doubleverify.com
 *.ensighten.com
 *.google-analytics.com
 *.googleadservices.com
 *.googlesyndication.com
 *.hotjar.com
+*.konduit.me
 *.krxd.net
+*.lijit.com
 *.logs.datadoghq.eu
 *.moatads.com
 *.omtrdc.net
+*.outbrain.com
+*.placed.com
 *.rubiconproject.com
 *.scorecardresearch.com
+*.segment.io
 *.smartadserver.com
+*.springserve.com
+*.taboola.com
 
+*.ads.*
 ad.*
 ads.*
-*.ads.*
-adserver.video
+adserver.*
 adservice.google.com
-targeting.washpost.nile.works
+bh.contextweb.com
+bid.contextweb.com
+collector.brandmetrics.com
+conductor.clicktale.net
+insight.adsrvr.org
+pixel.quantserve.com
 rtb.districtm.io
+targeting.washpost.nile.works
