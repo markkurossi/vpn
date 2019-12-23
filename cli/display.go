@@ -122,7 +122,7 @@ func statusLine(out io.Writer, row, width int, msg string) {
 	VT100MoveTo(out, row, 0)
 	VT100ReverseVideo(out)
 	if 3+len(msg) > width {
-		fmt.Fprintf(out, "%s")
+		fmt.Fprintf(out, "%s", msg)
 	} else {
 		fmt.Fprintf(out, "--")
 		fmt.Fprintf(out, " %s ", msg)
