@@ -56,6 +56,12 @@ func SetServers(servers []string) error {
 	return exec.Command(args[0], args[1:]...).Run()
 }
 
+func RestoreServers(servers []string) error {
+	// networksetup -setdnsservers Wi-Fi empty
+	args := []string{"networksetup", "-setdnsservers", "Wi-Fi", "empty"}
+	return exec.Command(args[0], args[1:]...).Run()
+}
+
 func FlushCache() error {
 	for _, cmd := range [][]string{
 		[]string{"killall", "-HUP", "mDNSResponder"},

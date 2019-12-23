@@ -101,7 +101,7 @@ func main() {
 	go func() {
 		s := <-c
 		fmt.Println("signal", s)
-		dns.SetServers(origServers)
+		dns.RestoreServers(origServers)
 		os.Exit(0)
 	}()
 
@@ -142,7 +142,7 @@ func main() {
 					go func() {
 						err := proxy.Query(udp, d)
 						if err != nil {
-							fmt.Printf("DNS client write failed: %s\n", err)
+							fmt.Printf("DNS query failed: %sb\n", err)
 						}
 					}()
 				}
