@@ -101,16 +101,16 @@ func glob(value, pattern []string) bool {
 		}
 		switch pattern[0] {
 		case "*":
-			for i := 1; i < len(value)-len(pattern)+2; i++ {
-				if glob(pattern[1:], value[i:]) {
+			for i := 1; i <= len(value); i++ {
+				if glob(value[i:], pattern[1:]) {
 					return true
 				}
 			}
 			return false
 
 		case "**":
-			for i := 0; i < len(value)-len(pattern)+2; i++ {
-				if glob(pattern[1:], value[i:]) {
+			for i := 0; i <= len(value); i++ {
+				if glob(value[i:], pattern[1:]) {
 					return true
 				}
 			}

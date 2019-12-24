@@ -42,6 +42,11 @@ func TestNonEmptyGlob(t *testing.T) {
 	if !label.Match(pattern) {
 		t.Errorf("Glob match failed")
 	}
+	label = Labels([]string{"web", "hb", "ad", "cpe", "dotomi", "com"})
+	pattern = Labels([]string{"*", "ad", "*"})
+	if !label.Match(pattern) {
+		t.Errorf("Glob match 2 failed")
+	}
 }
 
 func TestEmptyGlob(t *testing.T) {
