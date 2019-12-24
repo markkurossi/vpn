@@ -29,6 +29,7 @@
 *.omtrdc.net
 *.outbrain.com
 *.placed.com
+*.qualtrics.com
 *.rubiconproject.com
 *.scorecardresearch.com
 *.segment.io
@@ -36,9 +37,8 @@
 *.springserve.com
 *.taboola.com
 
-*.ads.*
 **.ad.*
-ads.*
+**.ads.*
 adserver.*
 adservice.google.com
 bh.contextweb.com
