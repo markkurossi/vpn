@@ -16,6 +16,24 @@ import (
 	"unsafe"
 )
 
+const (
+	DefaultClientIP = "192.168.192.1"   // LocalIP
+	DefaultServerIP = "192.168.192.254" // RemoteIP
+)
+
+// EXT_IP is the VPN server address
+// EXT_GW_IP is the default gw
+
+type Config struct {
+	Iface     string
+	LocalIP   string
+	RemoteIP  string
+	LocalIP6  string
+	RemoteIP6 string
+	ServerIP  string
+	GatewayIP string
+}
+
 type Tunnel struct {
 	fd   C.int
 	Name string

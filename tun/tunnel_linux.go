@@ -1,5 +1,5 @@
 //
-// tunnel_darwin.go
+// tunnel_linux.go
 //
 // Copyright (c) 2019 Markku Rossi
 //
@@ -35,6 +35,9 @@ var unsetCommands = []string{
 }
 
 func (t *Tunnel) Configure() error {
+	if true {
+		return fmt.Errorf("Tunnel.Configure not implemented yet")
+	}
 	for _, command := range setCommands {
 		tmpl := template.Must(template.New("set").Parse(command))
 
