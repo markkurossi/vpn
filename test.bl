@@ -37,7 +37,7 @@
 *.taboola.com
 
 *.ads.*
-ad.*
+**.ad.*
 ads.*
 adserver.*
 adservice.google.com
