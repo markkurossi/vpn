@@ -6,6 +6,8 @@
 // All rights reserved.
 //
 
+// Package dns provides types and primitives for parsing and creating
+// DNS packets.
 package dns
 
 import (
