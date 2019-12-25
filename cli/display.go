@@ -68,6 +68,8 @@ func EventHandler(ch chan dns.Event) {
 	bHeight := (height - 2) / 2
 	qHeight := height - bHeight - 2
 
+	var countQueries, countBlocks int
+
 	for event := range ch {
 		label := event.Labels.String()
 
@@ -76,24 +78,33 @@ func EventHandler(ch chan dns.Event) {
 			count := queries[label]
 			count++
 			queries[label] = count
+			countQueries++
 
 		case dns.EventBlock:
 			count := blocked[label]
 			count++
 			blocked[label] = count
+			countBlocks++
 		}
-		printStats(os.Stdout, width, bHeight, qHeight, blocked, queries)
+		printStats(os.Stdout, width, bHeight, qHeight, blocked, queries,
+			countBlocks, countQueries)
 	}
 }
 
-func printStats(out io.Writer, w, bHeight, qHeight int, b, q map[string]int) {
+func printStats(out io.Writer, w, bHeight, qHeight int, b, q map[string]int,
+	countB, countQ int) {
+
+	total := countB + countQ
+
 	VT100EraseScreen(out)
 
 	VT100MoveTo(out, 1, 0)
-	statusLine(out, 1, w, "Blocked")
+	statusLine(out, 1, w, fmt.Sprintf("Blocked %d/%d (%.0f%%)",
+		countB, total, float64(countB)/float64(total)*100))
 	printMap(out, w, 2, bHeight, b)
 
-	statusLine(out, bHeight+2, w, "Queries")
+	statusLine(out, bHeight+2, w, fmt.Sprintf("Queries %d/%d (%.0f%%)",
+		countQ, total, float64(countQ)/float64(total)*100))
 	printMap(out, w, bHeight+3, qHeight, q)
 }
 
