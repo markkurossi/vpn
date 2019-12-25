@@ -28,6 +28,14 @@ var (
 	queries = make(map[string]int)
 )
 
+func Init() {
+	VT100ShowCursor(os.Stdout, false)
+}
+
+func Reset() {
+	VT100ShowCursor(os.Stdout, true)
+}
+
 func Size() (int, int, error) {
 	cmd := exec.Command("stty", "size")
 	cmd.Stdin = os.Stdin

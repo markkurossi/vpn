@@ -25,7 +25,6 @@ const (
 // EXT_GW_IP is the default gw
 
 type Config struct {
-	Iface     string
 	LocalIP   string
 	RemoteIP  string
 	LocalIP6  string

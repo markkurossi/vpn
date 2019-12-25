@@ -64,7 +64,10 @@ func main() {
 		log.Fatal(err)
 	}
 	fmt.Printf("Tunnel: %s\n", tunnel)
-	err = tunnel.Configure()
+	err = tunnel.Configure(tun.Config{
+		LocalIP:  tun.DefaultClientIP,
+		RemoteIP: tun.DefaultServerIP,
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -91,6 +94,7 @@ func main() {
 	if *interactive {
 		events := make(chan dns.Event)
 		proxy.Events = events
+		cli.Init()
 		go cli.EventHandler(events)
 	}
 
@@ -112,6 +116,7 @@ func main() {
 		s := <-c
 		fmt.Println("signal", s)
 		dns.RestoreServers(origServers)
+		cli.Reset()
 		os.Exit(0)
 	}()
 

@@ -34,15 +34,19 @@ var unsetCommands = []string{
 	"route delete {{.ServerIP}} {{.GatewayIP}}",
 }
 
-func (t *Tunnel) Configure() error {
+type config struct {
+	Config
+	Iface string
+}
+
+func (t *Tunnel) Configure(cfg Config) error {
 	for _, command := range setCommands {
 		tmpl := template.Must(template.New("set").Parse(command))
 
 		builder := new(strings.Builder)
-		err := tmpl.Execute(builder, Config{
-			Iface:    t.Name,
-			LocalIP:  DefaultClientIP,
-			RemoteIP: DefaultServerIP,
+		err := tmpl.Execute(builder, config{
+			Iface:  t.Name,
+			Config: cfg,
 		})
 		if err != nil {
 			return err

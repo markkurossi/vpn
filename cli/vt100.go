@@ -72,3 +72,14 @@ func VT100MoveTo(out io.Writer, row, col int) error {
 	_, err := out.Write([]byte(fmt.Sprintf("\x1b[%d;%dH", row, col)))
 	return err
 }
+
+func VT100ShowCursor(out io.Writer, show bool) error {
+	data := []byte{0x1b, '[', '?', '2', '5'}
+	if show {
+		data = append(data, 'h')
+	} else {
+		data = append(data, 'l')
+	}
+	_, err := out.Write(data)
+	return err
+}
