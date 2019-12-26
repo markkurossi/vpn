@@ -6,4 +6,4 @@ build:
 	docker image build -t builder:1.0 .
 
 shell:
-	docker run -v $(CURDIR)/../../../..:/go/src -it builder:1.0  bash
+	docker run -v $(CURDIR)/../../../..:/root/go/src -it builder:1.0  bash

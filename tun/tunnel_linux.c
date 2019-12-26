@@ -65,7 +65,6 @@ int tun_create(char **name_return, int *errno_return)
         return -1;
     }
     ifr.ifr_flags = IFF_TUN | IFF_NO_PI;
-    snprintf(ifr.ifr_name, IFNAMSIZ, "");
     if (ioctl(fd, TUNSETIFF, &ifr) != 0)
       {
 	*errno_return = errno;
