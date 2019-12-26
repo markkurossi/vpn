@@ -13,6 +13,7 @@
 *.advertising.com
 *.amazon-adsystem.com
 *.avantisvideo.com
+*.chartbeat.com
 *.cxense.com
 *.doubleclick.net
 *.doubleverify.com
@@ -41,7 +42,9 @@
 **.ad.*
 **.ads.*
 adserver.*
-adservice.google.com
+adservice.*
+api.hubapi.com
+api.hubspot.com
 bh.contextweb.com
 bid.contextweb.com
 collector.brandmetrics.com
