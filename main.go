@@ -61,7 +61,7 @@ func main() {
 
 	tunnel, err := tun.Create()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Failed to create tunnel: %s\n", err)
 	}
 	fmt.Printf("Tunnel: %s\n", tunnel)
 	err = tunnel.Configure(tun.Config{
