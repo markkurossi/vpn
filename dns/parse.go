@@ -447,6 +447,10 @@ func parseLabels(data []byte, ofs int, allowPtr bool) (Labels, int, error) {
 			ofs += 2
 
 			offset &= 0x3fff
+			if offset == ofs-2 {
+				// Pointer to the pointer itself.
+				return nil, ofs, ip.ErrorInvalid
+			}
 			pl, _, err := parseLabels(data, offset, true)
 			if err != nil {
 				return nil, ofs, err
