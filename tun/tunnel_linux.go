@@ -16,18 +16,9 @@ import (
 )
 
 var setCommands = []string{
-	"ifconfig {{.Iface}} {{.LocalIP}} {{.RemoteIP}} up",
-	//"ifconfig {{.Iface}} inet6 {{.LocalIP6}} {{.RemoteIP6}} prefixlen 128 up",
-
-	// Add route to the VPN server via current default GW
-	//"route add {{.ServerIP}} {{.GatewayIP}}",
-
-	// Default route via VPN
-	//"route add 0/1 {{.RemoteIP}}",
-	//"route add 128/1 {{.RemoteIP}}",
-
-	//"route add -inet6 -blackhole 0000::/1 {{.RemoteIP6}}",
-	//"route add -inet6 -blackhole 8000::/1 {{.RemoteIP6}}",
+	"ip addr add {{.LocalIP}} peer {{.RemoteIP}} dev {{.Iface}}",
+	// "ip -6 addr add $LOCAL_TUN_IP6 peer $REMOTE_TUN_IP6/96 dev $IF_NAME",
+	"ip link set dev {{.Iface}} up",
 }
 
 var unsetCommands = []string{
@@ -40,9 +31,6 @@ type config struct {
 }
 
 func (t *Tunnel) Configure(cfg Config) error {
-	if true {
-		return fmt.Errorf("Tunnel.Configure not implemented yet")
-	}
 	for _, command := range setCommands {
 		tmpl := template.Must(template.New("set").Parse(command))
 

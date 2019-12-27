@@ -10,20 +10,80 @@ package dns
 
 import (
 	"fmt"
+	"os/exec"
+	"regexp"
+	"strings"
 )
 
+var (
+	reLink   = regexp.MustCompilePOSIX(`^Link [[:digit:]]+ \(([^\)]+)\)`)
+	reServer = regexp.MustCompilePOSIX(`^[[:space:]]*DNS Servers:[[:space:]]+([[:^space:]]+)`)
+)
+
+type server struct {
+	Link    string
+	Servers string
+}
+
+func getServers() ([]server, error) {
+	cmd := exec.Command("systemd-resolve", "--status")
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, err
+	}
+
+	var result []server
+	var link string
+	for _, line := range strings.Split(string(output), "\n") {
+		m := reLink.FindStringSubmatch(line)
+		if m != nil {
+			link = m[1]
+			continue
+		}
+		m = reServer.FindStringSubmatch(line)
+		if m != nil {
+			result = append(result, server{
+				Link:    link,
+				Servers: m[1],
+			})
+		}
+	}
+	return result, nil
+}
+
 func GetServers() ([]string, error) {
-	return nil, fmt.Errorf("GetServers not implemented yet")
+	servers, err := getServers()
+	if err != nil {
+		return nil, err
+	}
+	if len(servers) == 0 {
+		return nil, fmt.Errorf("DNS servers not found")
+	}
+	var result []string
+	for _, server := range servers {
+		result = append(result, server.Servers)
+	}
+	return result, nil
 }
 
 func SetServers(servers []string) error {
-	return fmt.Errorf("SetServers not implemented yet")
+	old, err := getServers()
+	if err != nil {
+		return err
+	}
+	if len(old) == 0 {
+		return fmt.Errorf("Could not get interface information")
+	}
+	cmd := exec.Command("systemd-resolve", "--set-dns="+servers[0],
+		"-i", old[0].Link)
+
+	return cmd.Run()
 }
 
 func RestoreServers(servers []string) error {
-	return fmt.Errorf("RestoreServers not implemented yet")
+	return SetServers(servers)
 }
 
 func FlushCache() error {
-	return fmt.Errorf("FlushCache not implemented yet")
+	return exec.Command("systemd-resolve", "--flush-caches").Run()
 }

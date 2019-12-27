@@ -128,7 +128,9 @@ func main() {
 		}
 		packet, err := ip.Parse(data)
 		if err != nil {
-			fmt.Printf("%s: packet:\n%s", err, hex.Dump(data))
+			if *verboseFlag > 0 {
+				fmt.Printf("%s: packet:\n%s", err, hex.Dump(data))
+			}
 			continue
 		}
 		switch packet.Protocol() {

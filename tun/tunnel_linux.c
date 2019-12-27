@@ -41,7 +41,7 @@
 
 int tun_create(char **name_return, int *errno_return)
 {
-    struct ifreq ifr;
+    struct ifreq ifr = {0};
     int          fd;
     int          err;
     char         *if_name;
@@ -59,7 +59,7 @@ int tun_create(char **name_return, int *errno_return)
     fd = open("/dev/net/tun", O_RDWR);
     if (fd == -1)
       {
-        fprintf(stderr, "tun module not present. See https://sk.tl/2RdReigK\n");
+        fprintf(stderr, "tun module not present\n");
 	*errno_return = ENODEV;
 	free(if_name);
         return -1;
