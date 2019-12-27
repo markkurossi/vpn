@@ -18,7 +18,6 @@
 *.doubleclick.net
 *.doubleverify.com
 *.ensighten.com
-*.google-analytics.com
 *.googleadservices.com
 *.googlesyndication.com
 *.hotjar.com
@@ -43,13 +42,16 @@
 **.ads.*
 adserver.*
 adservice.*
-api.hubapi.com
-api.hubspot.com
 bh.contextweb.com
 bid.contextweb.com
-collector.brandmetrics.com
 conductor.clicktale.net
 insight.adsrvr.org
 pixel.quantserve.com
 rtb.districtm.io
-targeting.washpost.nile.works
+
+# Analytics
+*.google-analytics.com
+*.lightstep.com
+api.hubapi.com
+api.hubspot.com
+collector.brandmetrics.com
