@@ -25,6 +25,10 @@ const (
 
 type ID uint16
 
+func (id ID) String() string {
+	return fmt.Sprintf("%04d", id)
+}
+
 type Opcode uint8
 
 const (

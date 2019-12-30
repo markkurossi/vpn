@@ -37,6 +37,8 @@ func main() {
 			fmt.Printf("DNS error: %s\n", err)
 			continue
 		}
-		fmt.Printf("Result: %s\n", result)
+		for _, r := range result {
+			fmt.Printf("%s\t%s\n", r.Address, r.NotAfter)
+		}
 	}
 }

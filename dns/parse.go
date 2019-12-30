@@ -58,7 +58,7 @@ func (d *DNS) Dump() {
 	} else {
 		qr = "query"
 	}
-	fmt.Printf("DNS %04x: %s %s AA=%v TC=%v RD=%v RA=%v (%s)\n",
+	fmt.Printf("DNS %s: %s %s AA=%v TC=%v RD=%v RA=%v (%s)\n",
 		d.ID, qr, d.Opcode, d.AA, d.TC, d.RD, d.RA, d.RCODE)
 	for _, q := range d.Questions {
 		fmt.Printf("    Q: %s QTYPE=%s, QCLASS=%s\n",
