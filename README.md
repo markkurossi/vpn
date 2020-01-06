@@ -13,7 +13,7 @@ application independent network filters, for example:
 
 Start the vpn application with DoH URL:
 
-    $ sudo ./vpn -doh https://dns.google/dns-query
+    $ sudo ./vpn -doh https://mozilla.cloudflare-dns.com/dns-query
 
 The DoH proxy implements the DNS request padding strategy, defined in
 [RFC 8467](https://tools.ietf.org/html/rfc8467). If your DoH server
@@ -31,7 +31,7 @@ The `-i` flag starts the application in interactive mode:
 
 You can also combine ad blocker with DoH:
 
-    $ sudo ./vpn -blacklist test.bl -doh https://dns.google/dns-query -i
+    $ sudo ./vpn -blacklist test.bl -doh https://mozilla.cloudflare-dns.com/dns-query -j
 
 ## References
 
