@@ -1,7 +1,7 @@
 //
 // main.go
 //
-// Copyright (c) 2019 Markku Rossi
+// Copyright (c) 2019-2020 Markku Rossi
 //
 // All rights reserved.
 //
@@ -10,21 +10,32 @@ package main
 
 import (
 	"encoding/hex"
+	"encoding/json"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"os/signal"
+	"path"
 
+	"github.com/markkurossi/cicd/api/auth"
 	"github.com/markkurossi/vpn/cli"
 	"github.com/markkurossi/vpn/dns"
 	"github.com/markkurossi/vpn/ip"
 	"github.com/markkurossi/vpn/tun"
 )
 
+type ProxyConfig struct {
+	ClientID      string `json:"client_id"`
+	ClientSecret  string `json:"client_secret"`
+	TokenEndpoint string `json:"token_endpoint"`
+}
+
 func main() {
 	bl := flag.String("blacklist", "", "DNS blacklist")
 	doh := flag.String("doh", "", "DNS-over-HTTPS URL")
+	dohProxy := flag.String("doh-proxy", "", "DNS-over-HTTPS proxy URL")
 	srv := flag.String("dns", "", "DNS server to use (default to system DNS)")
 	nopad := flag.Bool("nopad", false, "Do not PAD DoH requests")
 	interactive := flag.Bool("i", false, "Interactive mode")
@@ -83,7 +94,16 @@ func main() {
 	proxy.Blacklist = blacklist
 
 	if len(*doh) > 0 {
-		doh, err := dns.NewDoHClient(*doh)
+		var oauth2Client *auth.OAuth2Client
+		if len(*dohProxy) > 0 {
+			cfg, err := readProxyConfig()
+			if err != nil {
+				log.Fatal(err)
+			}
+			oauth2Client = auth.NewOAuth2Client(cfg.ClientID, cfg.ClientSecret,
+				cfg.TokenEndpoint)
+		}
+		doh, err := dns.NewDoHClient(*doh, oauth2Client, *dohProxy)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -159,7 +179,7 @@ func main() {
 					go func() {
 						err := proxy.Query(udp, d)
 						if err != nil {
-							fmt.Printf("DNS query failed: %sb\n", err)
+							fmt.Printf("DNS query failed: %s\n", err)
 						}
 					}()
 				}
@@ -173,4 +193,28 @@ func main() {
 			fmt.Printf("Packet: %s\n%s", packet, hex.Dump(packet.Data()))
 		}
 	}
+}
+
+func readProxyConfig() (*ProxyConfig, error) {
+	dir, err := os.UserHomeDir()
+	if err != nil {
+		return nil, fmt.Errorf("Error getting user home directory: %s", err)
+	}
+	path := path.Join(dir, ".doh-proxy.conf")
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("Error opening '%s': %s", path, err)
+	}
+	defer file.Close()
+
+	data, err := ioutil.ReadAll(file)
+	if err != nil {
+		return nil, fmt.Errorf("Error reading '%s': %s", path, err)
+	}
+	config := new(ProxyConfig)
+	err = json.Unmarshal(data, config)
+	if err != nil {
+		return nil, fmt.Errorf("Error parsing '%s': %s", path, err)
+	}
+	return config, nil
 }

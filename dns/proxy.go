@@ -81,7 +81,7 @@ func NewProxy(server string, out io.Writer) (*Proxy, error) {
 }
 
 func (p *Proxy) Query(udp *ip.UDP, dns *DNS) error {
-	var qDoHServer bool
+	var qPassthrough bool
 
 	for _, q := range dns.Questions {
 		for _, black := range p.Blacklist {
@@ -93,12 +93,12 @@ func (p *Proxy) Query(udp *ip.UDP, dns *DNS) error {
 				return p.nonExistingDomain(udp, dns)
 			}
 		}
-		if p.DoH != nil && p.DoH.IsServer(q.Labels.String()) {
-			qDoHServer = true
+		if p.DoH != nil && p.DoH.Passthrough(q.Labels.String()) {
+			qPassthrough = true
 		}
 		if p.Verbose > 0 {
 			marker := "?"
-			if qDoHServer {
+			if qPassthrough {
 				marker = "\u00ae"
 			}
 			fmt.Printf(" %s %s %s %s\n", marker, q.Labels, q.QTYPE, q.QCLASS)
@@ -123,7 +123,7 @@ func (p *Proxy) Query(udp *ip.UDP, dns *DNS) error {
 	}
 
 	// RFC 8467 padding.
-	if !p.NoPad && p.DoH != nil && !qDoHServer {
+	if !p.NoPad && p.DoH != nil && !qPassthrough {
 		dataLen := len(data)
 
 		// Does the request have OPT record?
@@ -202,11 +202,11 @@ idalloc:
 
 	bo.PutUint16(data, uint16(id))
 
-	if qDoHServer && len(dns.Questions) > 1 {
+	if qPassthrough && len(dns.Questions) > 1 {
 		return fmt.Errorf("Quering DoH server with multiple questions")
 	}
 
-	if p.DoH != nil && !qDoHServer {
+	if p.DoH != nil && !qPassthrough {
 		resp, err := p.DoH.Do(data)
 		if err != nil {
 			return err
