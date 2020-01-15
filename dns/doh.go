@@ -130,7 +130,7 @@ func (doh *DoHClient) doDoHProxy(data []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	for {
+	for retryCount := 0; retryCount < 2; retryCount++ {
 		if len(doh.token) == 0 {
 			token, err := doh.oauth2.GetToken()
 			if err != nil {
@@ -169,4 +169,5 @@ func (doh *DoHClient) doDoHProxy(data []byte) ([]byte, error) {
 			return nil, fmt.Errorf("HTTP error: %s", string(result))
 		}
 	}
+	return nil, fmt.Errorf("can't connect to DoH proxy")
 }
