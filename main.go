@@ -54,7 +54,6 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		fmt.Printf("Blacklist: %v\n", bl)
 	}
 
 	origServers, err := dns.GetServers()
