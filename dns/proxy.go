@@ -97,7 +97,7 @@ func (p *Proxy) Query(udp *ip.UDP, dns *DNS) error {
 			qPassthrough = true
 		}
 		if p.Verbose > 0 {
-			marker := "?"
+			marker := "\u2713"
 			if qPassthrough {
 				marker = "\u00ae"
 			}
