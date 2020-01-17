@@ -12,3 +12,4 @@
 *.out
 vpn
 utils/nslookup/nslookup
+utils/cname/cname
