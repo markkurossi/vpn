@@ -36,11 +36,19 @@ func main() {
 	bl := flag.String("blacklist", "", "DNS blacklist")
 	doh := flag.String("doh", "", "DNS-over-HTTPS URL")
 	dohProxy := flag.String("doh-proxy", "", "DNS-over-HTTPS proxy URL")
+	encrypt := flag.Bool("encrypt", true,
+		"Encrypt DNS-over-HTTPS proxy requests")
 	srv := flag.String("dns", "", "DNS server to use (default to system DNS)")
 	nopad := flag.Bool("nopad", false, "Do not PAD DoH requests")
 	interactive := flag.Bool("i", false, "Interactive mode")
 	verboseFlag := flag.Int("v", 0, "Verbose output")
 	flag.Parse()
+
+	if len(flag.Args()) != 0 {
+		fmt.Printf("Extra arguments: %v\n", flag.Args())
+		flag.Usage()
+		os.Exit(1)
+	}
 
 	if *interactive {
 		*verboseFlag = 0
@@ -106,6 +114,7 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
+		doh.Encrypt = *encrypt
 		proxy.DoH = doh
 	}
 	proxy.NoPad = *nopad

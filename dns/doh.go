@@ -20,13 +20,20 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"regexp"
+	"sync"
 
 	"github.com/markkurossi/cicd/api/auth"
+)
+
+const (
+	NONCE_LEN   = 12
+	RETRY_COUNT = 10
 )
 
 var (
@@ -37,10 +44,18 @@ type DoHClient struct {
 	URL     string
 	servers []string
 	http    *http.Client
-	oauth2  *auth.OAuth2Client
-	proxy   string
+	OAuth2  *auth.OAuth2Client
+	Proxy   string
+	Encrypt bool
 	token   string
-	cert    *x509.Certificate
+	certs   map[string]*x509.Certificate
+	sa      *SA
+	m       *sync.Mutex
+}
+
+type SA struct {
+	ID  string
+	Key []byte
 }
 
 func NewDoHClient(server string, oauth2 *auth.OAuth2Client, proxy string) (
@@ -49,8 +64,10 @@ func NewDoHClient(server string, oauth2 *auth.OAuth2Client, proxy string) (
 	client := &DoHClient{
 		URL:    server,
 		http:   new(http.Client),
-		oauth2: oauth2,
-		proxy:  proxy,
+		OAuth2: oauth2,
+		Proxy:  proxy,
+		certs:  make(map[string]*x509.Certificate),
+		m:      new(sync.Mutex),
 	}
 
 	if oauth2 != nil {
@@ -64,6 +81,15 @@ func NewDoHClient(server string, oauth2 *auth.OAuth2Client, proxy string) (
 		if err != nil {
 			return nil, err
 		}
+		// If proxy is at localhost, add passthrough also for server.
+		proxyServer, err := getServerFromURL(proxy)
+		if err != nil {
+			return nil, err
+		}
+		switch proxyServer {
+		case "localhost", "127.0.0.1", "::1":
+			client.AddPassthrough(server)
+		}
 	} else {
 		err := client.AddPassthrough(server)
 		if err != nil {
@@ -75,21 +101,26 @@ func NewDoHClient(server string, oauth2 *auth.OAuth2Client, proxy string) (
 }
 
 func (doh *DoHClient) AddPassthrough(u string) error {
-	parsed, err := url.Parse(u)
+	server, err := getServerFromURL(u)
 	if err != nil {
 		return err
 	}
-	var server string
-	m := reServerPort.FindStringSubmatch(parsed.Host)
-	if m == nil {
-		server = parsed.Host
-	} else {
-		server = m[1]
-	}
-
 	fmt.Printf("Server: %s\n", server)
 	doh.servers = append(doh.servers, server)
 	return nil
+}
+
+func getServerFromURL(u string) (string, error) {
+	parsed, err := url.Parse(u)
+	if err != nil {
+		return "", err
+	}
+	m := reServerPort.FindStringSubmatch(parsed.Host)
+	if m == nil {
+		return parsed.Host, nil
+	} else {
+		return m[1], nil
+	}
 }
 
 func (doh *DoHClient) Passthrough(host string) bool {
@@ -102,10 +133,21 @@ func (doh *DoHClient) Passthrough(host string) bool {
 }
 
 func (doh *DoHClient) Do(data []byte) ([]byte, error) {
-	if len(doh.proxy) == 0 {
+	if len(doh.Proxy) == 0 {
 		return doh.doDoH(data)
 	} else {
-		return doh.doDoHProxy(data)
+		req, err := json.Marshal(map[string]interface{}{
+			"data":   data,
+			"server": doh.URL,
+		})
+		if err != nil {
+			return nil, err
+		}
+		if doh.Encrypt {
+			return doh.doDoHEncryptedProxy(req)
+		} else {
+			return doh.doDoHProxy(req)
+		}
 	}
 }
 
@@ -129,27 +171,19 @@ func (doh *DoHClient) doDoH(data []byte) ([]byte, error) {
 
 func (doh *DoHClient) doDoHProxy(data []byte) ([]byte, error) {
 
-	for retryCount := 0; retryCount < 2; retryCount++ {
-		if len(doh.token) == 0 {
-			token, err := doh.oauth2.GetToken()
-			if err != nil {
-				return nil, fmt.Errorf("OAuth2 error: %s", err)
-			}
-			doh.token = token.AccessToken
-		}
-
-		reqData, key, err := doh.CreatePayload(data)
+	for retryCount := 0; retryCount < RETRY_COUNT; retryCount++ {
+		token, err := doh.Token()
 		if err != nil {
 			return nil, err
 		}
 
-		req, err := http.NewRequest("POST", doh.proxy+"/dns-query",
-			bytes.NewReader(reqData))
+		req, err := http.NewRequest("POST", doh.Proxy+"/dns-query",
+			bytes.NewReader(data))
 		if err != nil {
 			return nil, err
 		}
 		req.Header.Set("Content-Type", "application/json;charset=UTF-8")
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", doh.token))
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 
 		resp, err := doh.http.Do(req)
 		if err != nil {
@@ -164,7 +198,7 @@ func (doh *DoHClient) doDoHProxy(data []byte) ([]byte, error) {
 
 		switch resp.StatusCode {
 		case http.StatusOK:
-			return Decrypt(key[:32], key[32+12:], result)
+			return result, nil
 
 		case http.StatusUnauthorized:
 			return nil, fmt.Errorf("Unauthorized: %s",
@@ -177,96 +211,229 @@ func (doh *DoHClient) doDoHProxy(data []byte) ([]byte, error) {
 	return nil, fmt.Errorf("can't connect to DoH proxy")
 }
 
-func (doh *DoHClient) Certificate() (*x509.Certificate, error) {
-	if doh.cert == nil {
-		req, err := http.NewRequest("GET", doh.proxy+"/certificate", nil)
+func (doh *DoHClient) doDoHEncryptedProxy(data []byte) ([]byte, error) {
+
+	sa, err := doh.SA()
+	if err != nil {
+		return nil, err
+	}
+
+	payload, err := Encrypt(sa.Key, data)
+	if err != nil {
+		return nil, err
+	}
+
+	for retryCount := 0; retryCount < RETRY_COUNT; retryCount++ {
+		token, err := doh.Token()
 		if err != nil {
 			return nil, err
 		}
-		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", doh.token))
+
+		req, err := http.NewRequest("POST",
+			fmt.Sprintf("%s/sas/%s/dns-query", doh.Proxy, sa.ID),
+			bytes.NewReader(payload))
+		if err != nil {
+			return nil, err
+		}
+		req.Header.Set("Content-Type", "application/octet-stream")
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+
 		resp, err := doh.http.Do(req)
 		if err != nil {
 			return nil, err
 		}
 		defer resp.Body.Close()
 
-		data, err := ioutil.ReadAll(resp.Body)
+		result, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
 			return nil, err
 		}
-		if resp.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("failed to get certificate: %s: %s",
-				resp.Status, string(data))
-		}
 
-		doh.cert, err = x509.ParseCertificate(data)
+		switch resp.StatusCode {
+		case http.StatusOK:
+			return Decrypt(sa.Key, result)
+
+		case http.StatusNotFound:
+			// SA unknown.
+			err = doh.CreateSA(sa)
+			if err != nil {
+				return nil, err
+			}
+
+		default:
+			return nil, fmt.Errorf("HTTP error %s: %s",
+				resp.Status, string(result))
+		}
+	}
+	return nil, fmt.Errorf("can't connect to encrypted DoH proxy")
+}
+
+func (doh *DoHClient) SA() (*SA, error) {
+	if doh.sa == nil {
+		buf := make([]byte, 32)
+
+		_, err := rand.Read(buf[:16])
 		if err != nil {
 			return nil, err
 		}
-		fmt.Printf("Certificate: %s %s\n", doh.cert.Subject, doh.cert.NotAfter)
+		id := base64.RawURLEncoding.EncodeToString(buf[:16])
+		_, err = rand.Read(buf)
+		if err != nil {
+			return nil, err
+		}
+		doh.sa = &SA{
+			ID:  id,
+			Key: buf,
+		}
 	}
-
-	return doh.cert, nil
+	return doh.sa, nil
 }
 
-func (doh *DoHClient) CreatePayload(q []byte) ([]byte, []byte, error) {
-	cert, err := doh.Certificate()
+func (doh *DoHClient) CreateSA(sa *SA) error {
+	token, err := doh.Token()
 	if err != nil {
-		return nil, nil, err
+		return err
 	}
 
-	var key [32 + 2*12]byte
-	_, err = rand.Read(key[:])
-	if err != nil {
-		return nil, nil, err
-	}
+	var id string
 
-	// Encrypt query.
-
-	payload, err := json.Marshal(map[string]string{
-		"data":   base64.RawURLEncoding.EncodeToString(q),
-		"server": doh.URL,
-	})
-	if err != nil {
-		return nil, nil, err
-	}
-	qEnc, err := Encrypt(key[:32], key[32:32+12], payload)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	// Encrypt payload encryption key with proxy public key.
-
-	var keyEnc []byte
-
-	switch pub := cert.PublicKey.(type) {
-	case *rsa.PublicKey:
-		keyEnc, err = rsa.EncryptOAEP(sha256.New(), rand.Reader, pub,
-			key[:], nil)
+	for retryCount := 0; retryCount < RETRY_COUNT; retryCount++ {
+		cert, err := doh.Certificate(id)
 		if err != nil {
-			return nil, nil, err
+			return err
 		}
 
-	default:
-		return nil, nil,
-			fmt.Errorf("Unsupported public key: %T", cert.PublicKey)
-	}
+		saReq, err := json.Marshal(map[string]interface{}{
+			"id":  sa.ID,
+			"key": sa.Key,
+		})
+		if err != nil {
+			return err
+		}
 
-	// Create DNS query payload.
-	data, err := json.Marshal(map[string]interface{}{
-		"data": base64.RawURLEncoding.EncodeToString(qEnc),
-		"key": map[string]interface{}{
-			"id":   cert.SerialNumber.String(),
-			"data": base64.RawURLEncoding.EncodeToString(keyEnc),
-		},
-	})
-	if err != nil {
-		return nil, nil, err
+		// Encrypt SA request payload.
+		var saReqEnc []byte
+		switch pub := cert.PublicKey.(type) {
+		case *rsa.PublicKey:
+			saReqEnc, err = rsa.EncryptOAEP(sha256.New(), rand.Reader, pub,
+				saReq, nil)
+			if err != nil {
+				return err
+			}
+
+		default:
+			return fmt.Errorf("unsupported public key: %T", cert.PublicKey)
+		}
+
+		data, err := json.Marshal(map[string]interface{}{
+			"data":   saReqEnc,
+			"key_id": cert.SerialNumber.String(),
+		})
+		if err != nil {
+			return err
+		}
+
+		req, err := http.NewRequest("POST", doh.Proxy+"/sas/",
+			bytes.NewReader(data))
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Content-Type", "application/octet-stream")
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+
+		resp, err := doh.http.Do(req)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+
+		result, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+
+		switch resp.StatusCode {
+		case http.StatusCreated:
+			return nil
+
+		case http.StatusFailedDependency:
+			id = string(result)
+
+		default:
+			return fmt.Errorf("HTTP error %d: %s", resp.StatusCode,
+				string(result))
+		}
 	}
-	return data, key[:], nil
+	return errors.New("SA creation failed")
 }
 
-func Encrypt(key, nonce, data []byte) ([]byte, error) {
+func (doh *DoHClient) Token() (string, error) {
+	if len(doh.token) == 0 {
+		token, err := doh.OAuth2.GetToken()
+		if err != nil {
+			return "", fmt.Errorf("OAuth2 error: %s", err)
+		}
+		doh.token = token.AccessToken
+	}
+	return doh.token, nil
+}
+
+func (doh *DoHClient) Certificate(id string) (*x509.Certificate, error) {
+	doh.m.Lock()
+	defer doh.m.Unlock()
+
+	cert, ok := doh.certs[id]
+	if ok {
+		return cert, nil
+	}
+
+	token, err := doh.Token()
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", doh.Proxy+"/certificate", nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+	resp, err := doh.http.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	data, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to get certificate: %s: %s",
+			resp.Status, string(data))
+	}
+
+	cert, err = x509.ParseCertificate(data)
+	if err != nil {
+		return nil, err
+	}
+
+	id = cert.SerialNumber.String()
+	_, ok = doh.certs[id]
+	if !ok {
+		doh.certs[id] = cert
+	}
+
+	return cert, nil
+}
+
+func Encrypt(key, data []byte) ([]byte, error) {
+	var nonce [NONCE_LEN]byte
+
+	_, err := rand.Read(nonce[:])
+	if err != nil {
+		return nil, err
+	}
+
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, err
@@ -275,10 +442,15 @@ func Encrypt(key, nonce, data []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return aesgcm.Seal(nil, nonce[:], data, nil), nil
+	encrypted := aesgcm.Seal(nil, nonce[:], data, nil)
+
+	return append(nonce[:], encrypted...), nil
 }
 
-func Decrypt(key, nonce, data []byte) ([]byte, error) {
+func Decrypt(key, data []byte) ([]byte, error) {
+	if len(data) < NONCE_LEN {
+		return nil, fmt.Errorf("truncated encrypted payload: len=%d", len(data))
+	}
 	block, err := aes.NewCipher(key[:])
 	if err != nil {
 		return nil, err
@@ -287,5 +459,5 @@ func Decrypt(key, nonce, data []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return aesgcm.Open(nil, nonce, data, nil)
+	return aesgcm.Open(nil, data[:NONCE_LEN], data[NONCE_LEN:], nil)
 }
