@@ -27,6 +27,7 @@ import (
 	"net/url"
 	"regexp"
 	"sync"
+	"time"
 
 	"github.com/markkurossi/cicd/api/auth"
 )
@@ -48,14 +49,35 @@ type DoHClient struct {
 	Proxy   string
 	Encrypt bool
 	token   string
-	certs   map[string]*x509.Certificate
+	certs   map[string]*Certificate
 	sa      *SA
 	m       *sync.Mutex
 }
 
 type SA struct {
-	ID  string
-	Key []byte
+	ID      string
+	Key     []byte
+	Created time.Time
+}
+
+type Certificate struct {
+	X509     *x509.Certificate
+	LastSeen time.Time
+}
+
+func (cert *Certificate) ID() string {
+	return cert.X509.SerialNumber.String()
+}
+
+func (cert *Certificate) Encrypt(data []byte) ([]byte, error) {
+	switch pub := cert.X509.PublicKey.(type) {
+	case *rsa.PublicKey:
+		return rsa.EncryptOAEP(sha256.New(), rand.Reader, pub, data, nil)
+
+	default:
+		return nil, fmt.Errorf("unsupported public key: %T",
+			cert.X509.PublicKey)
+	}
 }
 
 func NewDoHClient(server string, oauth2 *auth.OAuth2Client, proxy string) (
@@ -66,7 +88,7 @@ func NewDoHClient(server string, oauth2 *auth.OAuth2Client, proxy string) (
 		http:   new(http.Client),
 		OAuth2: oauth2,
 		Proxy:  proxy,
-		certs:  make(map[string]*x509.Certificate),
+		certs:  make(map[string]*Certificate),
 		m:      new(sync.Mutex),
 	}
 
@@ -269,24 +291,40 @@ func (doh *DoHClient) doDoHEncryptedProxy(data []byte) ([]byte, error) {
 }
 
 func (doh *DoHClient) SA() (*SA, error) {
-	if doh.sa == nil {
+	now := time.Now()
+
+	if doh.sa == nil || doh.sa.Created.Before(now.Add(-30*time.Minute)) {
 		buf := make([]byte, 32)
 
+		// Create ID.
 		_, err := rand.Read(buf[:16])
 		if err != nil {
 			return nil, err
 		}
 		id := base64.RawURLEncoding.EncodeToString(buf[:16])
+
+		// Create key.
 		_, err = rand.Read(buf)
 		if err != nil {
 			return nil, err
 		}
+
 		doh.sa = &SA{
-			ID:  id,
-			Key: buf,
+			ID:      id,
+			Key:     buf,
+			Created: now,
 		}
 	}
 	return doh.sa, nil
+}
+
+type CreateSA struct {
+	SAs []*Envelope
+}
+
+type Envelope struct {
+	Data  []byte `json:"data"`
+	KeyID string `json:"key_id"`
 }
 
 func (doh *DoHClient) CreateSA(sa *SA) error {
@@ -295,14 +333,7 @@ func (doh *DoHClient) CreateSA(sa *SA) error {
 		return err
 	}
 
-	var id string
-
 	for retryCount := 0; retryCount < RETRY_COUNT; retryCount++ {
-		cert, err := doh.Certificate(id)
-		if err != nil {
-			return err
-		}
-
 		saReq, err := json.Marshal(map[string]interface{}{
 			"id":  sa.ID,
 			"key": sa.Key,
@@ -312,23 +343,30 @@ func (doh *DoHClient) CreateSA(sa *SA) error {
 		}
 
 		// Encrypt SA request payload.
-		var saReqEnc []byte
-		switch pub := cert.PublicKey.(type) {
-		case *rsa.PublicKey:
-			saReqEnc, err = rsa.EncryptOAEP(sha256.New(), rand.Reader, pub,
-				saReq, nil)
+
+		certs, err := doh.Certificate()
+		if err != nil {
+			return err
+		}
+
+		var payload CreateSA
+
+		now := time.Now()
+
+		for _, cert := range certs {
+			fmt.Printf(" - Cert %s, age %s\n",
+				cert.ID()[:32], now.Sub(cert.LastSeen))
+			encrypted, err := cert.Encrypt(saReq)
 			if err != nil {
 				return err
 			}
-
-		default:
-			return fmt.Errorf("unsupported public key: %T", cert.PublicKey)
+			payload.SAs = append(payload.SAs, &Envelope{
+				Data:  encrypted,
+				KeyID: cert.ID(),
+			})
 		}
 
-		data, err := json.Marshal(map[string]interface{}{
-			"data":   saReqEnc,
-			"key_id": cert.SerialNumber.String(),
-		})
+		data, err := json.Marshal(&payload)
 		if err != nil {
 			return err
 		}
@@ -354,10 +392,15 @@ func (doh *DoHClient) CreateSA(sa *SA) error {
 
 		switch resp.StatusCode {
 		case http.StatusCreated:
-			return nil
+			_, err = doh.AddCertificate(result)
+			return err
 
 		case http.StatusFailedDependency:
-			id = string(result)
+			cert, err := doh.AddCertificate(result)
+			if err != nil {
+				return err
+			}
+			fmt.Printf(" + Cert %s\n", cert.ID()[:32])
 
 		default:
 			return fmt.Errorf("HTTP error %d: %s", resp.StatusCode,
@@ -378,13 +421,17 @@ func (doh *DoHClient) Token() (string, error) {
 	return doh.token, nil
 }
 
-func (doh *DoHClient) Certificate(id string) (*x509.Certificate, error) {
-	doh.m.Lock()
-	defer doh.m.Unlock()
+func (doh *DoHClient) Certificate() ([]*Certificate, error) {
+	var result []*Certificate
 
-	cert, ok := doh.certs[id]
-	if ok {
-		return cert, nil
+	doh.m.Lock()
+	for _, cert := range doh.certs {
+		result = append(result, cert)
+	}
+	doh.m.Unlock()
+
+	if len(result) > 0 {
+		return result, nil
 	}
 
 	token, err := doh.Token()
@@ -412,16 +459,28 @@ func (doh *DoHClient) Certificate(id string) (*x509.Certificate, error) {
 			resp.Status, string(data))
 	}
 
-	cert, err = x509.ParseCertificate(data)
+	cert, err := doh.AddCertificate(data)
 	if err != nil {
 		return nil, err
 	}
+	result = append(result, cert)
 
-	id = cert.SerialNumber.String()
-	_, ok = doh.certs[id]
-	if !ok {
-		doh.certs[id] = cert
+	return result, nil
+}
+
+func (doh *DoHClient) AddCertificate(data []byte) (*Certificate, error) {
+	doh.m.Lock()
+	defer doh.m.Unlock()
+
+	X509, err := x509.ParseCertificate(data)
+	if err != nil {
+		return nil, err
 	}
+	cert := &Certificate{
+		X509:     X509,
+		LastSeen: time.Now(),
+	}
+	doh.certs[cert.ID()] = cert
 
 	return cert, nil
 }
