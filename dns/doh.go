@@ -351,11 +351,7 @@ func (doh *DoHClient) CreateSA(sa *SA) error {
 
 		var payload CreateSA
 
-		now := time.Now()
-
 		for _, cert := range certs {
-			fmt.Printf(" - Cert %s, age %s\n",
-				cert.ID()[:32], now.Sub(cert.LastSeen))
 			encrypted, err := cert.Encrypt(saReq)
 			if err != nil {
 				return err
@@ -396,11 +392,10 @@ func (doh *DoHClient) CreateSA(sa *SA) error {
 			return err
 
 		case http.StatusFailedDependency:
-			cert, err := doh.AddCertificate(result)
+			_, err := doh.AddCertificate(result)
 			if err != nil {
 				return err
 			}
-			fmt.Printf(" + Cert %s\n", cert.ID()[:32])
 
 		default:
 			return fmt.Errorf("HTTP error %d: %s", resp.StatusCode,
