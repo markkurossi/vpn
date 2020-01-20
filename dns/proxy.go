@@ -87,7 +87,7 @@ func (p *Proxy) Query(udp *ip.UDP, dns *DNS) error {
 		for _, black := range p.Blacklist {
 			if q.Labels.Match(black) {
 				if p.Verbose > 1 {
-					fmt.Printf(" \u00d7 %s (%s)\n", q.Labels, black)
+					fmt.Printf(" \U0001F6D1 %s (%s)\n", q.Labels, black)
 				}
 				p.event(EventBlock, q.Labels)
 				return p.nonExistingDomain(udp, dns)
@@ -97,9 +97,9 @@ func (p *Proxy) Query(udp *ip.UDP, dns *DNS) error {
 			qPassthrough = true
 		}
 		if p.Verbose > 0 {
-			marker := "\u2713"
+			marker := "\u2705"
 			if qPassthrough {
-				marker = "\u00ae"
+				marker = "\u2B50"
 			}
 			fmt.Printf(" %s %s %s %s\n", marker, q.Labels, q.QTYPE, q.QCLASS)
 		}
