@@ -23,16 +23,48 @@ import (
 )
 
 var (
-	reSize  = regexp.MustCompilePOSIX(`^([[:digit:]]+)[[:space:]]+([[:digit:]]+)$`)
-	blocked = make(map[string]int)
-	queries = make(map[string]int)
+	reSize      = regexp.MustCompilePOSIX(`^([[:digit:]]+)[[:space:]]+([[:digit:]]+)$`)
+	blocked     = make(map[string]int)
+	queries     = make(map[string]int)
+	blockedList []string
+	queriesList []string
+	listMode    bool
 )
 
-func Init() {
+func Init(signals chan os.Signal, events chan dns.Event) {
 	VT100ShowCursor(os.Stdout, false)
+
+	rawMode := exec.Command("/bin/stty", "raw")
+	rawMode.Stdin = os.Stdin
+	rawMode.Run()
+
+	go func() {
+		var done bool
+		for !done {
+			var buf [1]byte
+			_, err := os.Stdin.Read(buf[:])
+			if err != nil {
+				break
+			}
+			switch buf[0] {
+			case 3, 'q':
+				signals <- os.Interrupt
+				done = true
+
+			case 'l':
+				listMode = !listMode
+				events <- dns.Event{
+					Type: -1,
+				}
+			}
+		}
+	}()
 }
 
 func Reset() {
+	rawMode := exec.Command("/bin/stty", "-raw")
+	rawMode.Stdin = os.Stdin
+	rawMode.Run()
 	VT100ShowCursor(os.Stdout, true)
 }
 
@@ -80,19 +112,29 @@ func EventHandler(ch chan dns.Event) {
 			queries[label] = count
 			countQueries++
 
+			queriesList = append([]string{label}, queriesList...)
+			if len(queriesList) > height {
+				queriesList = queriesList[:height]
+			}
+
 		case dns.EventBlock:
 			count := blocked[label]
 			count++
 			blocked[label] = count
 			countBlocks++
+
+			blockedList = append([]string{label}, blockedList...)
+			if len(blockedList) > height {
+				blockedList = blockedList[:height]
+			}
 		}
 		printStats(os.Stdout, width, bHeight, qHeight, blocked, queries,
-			countBlocks, countQueries)
+			blockedList, queriesList, countBlocks, countQueries)
 	}
 }
 
 func printStats(out io.Writer, w, bHeight, qHeight int, b, q map[string]int,
-	countB, countQ int) {
+	bL, qL []string, countB, countQ int) {
 
 	total := countB + countQ
 
@@ -101,11 +143,19 @@ func printStats(out io.Writer, w, bHeight, qHeight int, b, q map[string]int,
 	VT100MoveTo(out, 1, 0)
 	statusLine(out, 1, w, fmt.Sprintf("Blocked %d/%d (%.0f%%)",
 		countB, total, float64(countB)/float64(total)*100))
-	printMap(out, w, 2, bHeight, b)
+	if listMode {
+		printList(out, w, 2, bHeight, b, bL)
+	} else {
+		printMap(out, w, 2, bHeight, b)
+	}
 
 	statusLine(out, bHeight+2, w, fmt.Sprintf("Queries %d/%d (%.0f%%)",
 		countQ, total, float64(countQ)/float64(total)*100))
-	printMap(out, w, bHeight+3, qHeight, q)
+	if listMode {
+		printList(out, w, bHeight+3, qHeight, q, qL)
+	} else {
+		printMap(out, w, bHeight+3, qHeight, q)
+	}
 }
 
 func printMap(out io.Writer, w, row, height int, stats map[string]int) {
@@ -133,6 +183,26 @@ func printMap(out io.Writer, w, row, height int, stats map[string]int) {
 			fmt.Fprintf(out, "%2d %s", i+1, key)
 			VT100MoveTo(out, row+i, 1+w-5)
 			fmt.Fprintf(out, "%5d", stats[keys[i]])
+		}
+	}
+}
+
+func printList(out io.Writer, w, row, height int, stats map[string]int,
+	list []string) {
+
+	for i := 0; i < height; i++ {
+		VT100MoveTo(out, row+i, 0)
+		if i < len(list) {
+			key := list[i]
+
+			maxKeyLen := w - 6
+			if maxKeyLen > 0 && len(key) > maxKeyLen {
+				key = key[:maxKeyLen]
+			}
+
+			fmt.Fprintf(out, "%s", key)
+			VT100MoveTo(out, row+i, 1+w-5)
+			fmt.Fprintf(out, "%5d", stats[key])
 		}
 	}
 }

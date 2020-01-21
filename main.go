@@ -19,7 +19,7 @@ import (
 	"os/signal"
 	"path"
 
-	"github.com/markkurossi/cicd/api/auth"
+	"github.com/markkurossi/cloudsdk/api/auth"
 	"github.com/markkurossi/vpn/cli"
 	"github.com/markkurossi/vpn/dns"
 	"github.com/markkurossi/vpn/ip"
@@ -119,10 +119,12 @@ func main() {
 	}
 	proxy.NoPad = *nopad
 
+	c := make(chan os.Signal, 1)
+
 	if *interactive {
 		events := make(chan dns.Event)
 		proxy.Events = events
-		cli.Init()
+		cli.Init(c, events)
 		go cli.EventHandler(events)
 	}
 
@@ -137,14 +139,13 @@ func main() {
 		log.Printf("Failed to flush DNS cache: %s\n", err)
 	}
 
-	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
 
 	go func() {
 		s := <-c
-		fmt.Println("signal", s)
 		dns.RestoreServers(origServers)
 		cli.Reset()
+		fmt.Println("signal", s)
 		os.Exit(0)
 	}()
 
