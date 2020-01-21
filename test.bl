@@ -7,12 +7,14 @@
 *.adformnet.akadns.net
 *.adnxs.com
 *.adroll.com
+*.ads-twitter.com
 *.adsafeprotected.com
 *.adserve.io
 *.adtlgc.com
 *.advertising.com
 *.amazon-adsystem.com
 *.avantisvideo.com
+*.buysellads.com
 *.chartbeat.com
 *.cxense.com
 *.doubleclick.net
@@ -29,6 +31,7 @@
 *.omtrdc.net
 *.outbrain.com
 *.placed.com
+*.pubmatic.com
 *.qualtrics.com
 *.quantcount.com
 *.rubiconproject.com
@@ -40,19 +43,31 @@
 *.unoadsrv.com
 
 **.ad.*
+**.addthis.com
 **.ads.*
+**.ml314.com
 adserver.*
 adservice.*
 bh.contextweb.com
 bid.contextweb.com
 conductor.clicktale.net
 insight.adsrvr.org
+jadserve.**
 pixel.quantserve.com
 rtb.districtm.io
 
+# Games
+*.sanomagames.com
+
 # Analytics
+**.analytics.**
+**.geolocation.**
+**.ipinfo.io
+*.datadoghq-browser-agent.com
 *.google-analytics.com
 *.lightstep.com
+*.spklw.com
+*.stack-sonar.com
 api.hubapi.com
 api.hubspot.com
 collector.brandmetrics.com
