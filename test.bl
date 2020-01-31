@@ -19,7 +19,6 @@
 *.cxense.com
 *.doubleclick.net
 *.doubleverify.com
-*.ensighten.com
 *.googleadservices.com
 *.googlesyndication.com
 *.hotjar.com
@@ -45,6 +44,7 @@
 **.ad.*
 **.addthis.com
 **.ads.*
+**.gvt1.com
 **.ml314.com
 adserver.*
 adservice.*
@@ -63,6 +63,7 @@ rtb.districtm.io
 **.analytics.**
 **.geolocation.**
 **.ipinfo.io
+*.brandmetrics.com
 *.datadoghq-browser-agent.com
 *.google-analytics.com
 *.lightstep.com
@@ -71,3 +72,4 @@ rtb.districtm.io
 api.hubapi.com
 api.hubspot.com
 collector.brandmetrics.com
+tinypass.com
