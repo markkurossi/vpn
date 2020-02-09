@@ -31,7 +31,7 @@ The `-i` flag starts the application in interactive mode:
 
 You can also combine ad blocker with DoH:
 
-    $ sudo ./vpn -blacklist test.bl -doh https://mozilla.cloudflare-dns.com/dns-query -j
+    $ sudo ./vpn -blacklist test.bl -doh https://mozilla.cloudflare-dns.com/dns-query -i
 
 ## References
 
