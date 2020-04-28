@@ -14,6 +14,9 @@ import (
 	"net"
 	"sync"
 	"time"
+
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
 )
 
 var (
@@ -64,7 +67,7 @@ type Client struct {
 	readerC chan []byte
 	nextID  uint16
 	m       sync.Mutex
-	pending map[ID]chan *DNS
+	pending map[uint16]chan *layers.DNS
 }
 
 func NewClient(server string) (*Client, error) {
@@ -78,7 +81,7 @@ func NewClient(server string) (*Client, error) {
 		udp:     udp,
 		readerC: readerC,
 		nextID:  1,
-		pending: make(map[ID]chan *DNS),
+		pending: make(map[uint16]chan *layers.DNS),
 	}
 	go client.handler()
 
@@ -87,19 +90,21 @@ func NewClient(server string) (*Client, error) {
 
 func (client *Client) handler() {
 	for resp := range client.readerC {
-		r, err := Parse(resp)
-		if err != nil {
-			fmt.Printf("Invalid response: %s\n", err)
+		packet := gopacket.NewPacket(resp, layers.LayerTypeDNS, decodeOptions)
+		layer := packet.Layer(layers.LayerTypeDNS)
+		if layer == nil {
+			fmt.Printf("Invalid response: %s\n", packet)
 			continue
 		}
-		r.Dump()
+		dns, _ := layer.(*layers.DNS)
+
 		client.m.Lock()
-		ch, ok := client.pending[r.ID]
+		ch, ok := client.pending[dns.ID]
 		client.m.Unlock()
 		if ok {
-			ch <- r
+			ch <- dns
 		} else {
-			fmt.Printf("Unknown request %s\n", r.ID)
+			fmt.Printf("Unknown request %d\n", dns.ID)
 		}
 	}
 }
@@ -110,28 +115,28 @@ type ResolveResult struct {
 }
 
 func (client *Client) Resolve(name string) ([]ResolveResult, error) {
-	q := &DNS{
-		ID:     ID(client.nextID),
+	q := &layers.DNS{
+		ID:     client.nextID,
 		QR:     false,
-		Opcode: QUERY,
+		OpCode: layers.DNSOpCodeQuery,
 		RD:     true,
-		Questions: []*Question{
-			&Question{
-				Labels: NewLabels(name),
-				QTYPE:  A,
-				QCLASS: IN,
+		Questions: []layers.DNSQuestion{
+			layers.DNSQuestion{
+				Name:  []byte(name),
+				Type:  layers.DNSTypeA,
+				Class: layers.DNSClassIN,
 			},
 		},
 	}
 	client.nextID++
-	q.Dump()
 
-	data, err := q.Marshal()
+	buffer := gopacket.NewSerializeBuffer()
+	err := gopacket.SerializeLayers(buffer, serializeOptions, q)
 	if err != nil {
 		return nil, err
 	}
 
-	ch := make(chan *DNS)
+	ch := make(chan *layers.DNS)
 
 	client.m.Lock()
 	client.pending[q.ID] = ch
@@ -141,7 +146,7 @@ func (client *Client) Resolve(name string) ([]ResolveResult, error) {
 
 	start := time.Now()
 
-	err = client.udp.Write(data)
+	err = client.udp.Write(buffer.Bytes())
 	if err != nil {
 		return nil, err
 	}
@@ -151,15 +156,11 @@ func (client *Client) Resolve(name string) ([]ResolveResult, error) {
 		var result []ResolveResult
 		for _, ans := range resp.Answers {
 			notAfter := start.Add(time.Duration(ans.TTL) * time.Second)
-			if ans.TYPE == A {
-				if ans.RDATA.Len() == 4 {
-					a := ans.RDATA.Bytes()
-					result = append(result, ResolveResult{
-						Address: fmt.Sprintf("%d.%d.%d.%d",
-							a[0], a[1], a[2], a[3]),
-						NotAfter: notAfter,
-					})
-				}
+			if ans.Type == layers.DNSTypeA {
+				result = append(result, ResolveResult{
+					Address:  ans.String(),
+					NotAfter: notAfter,
+				})
 			}
 		}
 		return result, nil
@@ -169,7 +170,7 @@ func (client *Client) Resolve(name string) ([]ResolveResult, error) {
 	}
 }
 
-func (client *Client) completeRequest(id ID) {
+func (client *Client) completeRequest(id uint16) {
 	client.m.Lock()
 	ch, ok := client.pending[id]
 	delete(client.pending, id)
