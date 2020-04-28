@@ -1,6 +1,7 @@
 # -*- sh -*-
 # Test blacklist.
 
+*.3lift.com
 *.aaxads.com
 *.adap.tv
 *.adform.net
@@ -40,6 +41,10 @@
 *.springserve.com
 *.taboola.com
 *.unoadsrv.com
+*.brealtime.com
+
+subscribe.washingtonpost.com                                                   3
+**.nile.works
 
 **.ad.*
 **.addthis.com
@@ -55,6 +60,8 @@ insight.adsrvr.org
 jadserve.**
 pixel.quantserve.com
 rtb.districtm.io
+a.teads.tv
+ad-delivery.net
 
 # Games
 *.sanomagames.com
@@ -73,3 +80,4 @@ api.hubapi.com
 api.hubspot.com
 collector.brandmetrics.com
 tinypass.com
+*.akstat.io
