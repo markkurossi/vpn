@@ -10,63 +10,46 @@ package ip
 
 import (
 	"errors"
+
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
 )
 
-type ICMPType uint8
+func ICMPv4Response(packet gopacket.Packet, icmp *layers.ICMPv4) (
+	[]byte, error) {
 
-var icmpTypes = map[ICMPType]string{
-	0:  "Echo Reply",
-	3:  "Destination Unreachable",
-	4:  "Source Quench",
-	5:  "Redirect",
-	8:  "Echo",
-	11: "Time Exceeded",
-	12: "Parameter Problem",
-	13: "Timestamp",
-	14: "Timestamp Reply",
-	15: "Information Request",
-	16: "Information Reply",
-}
+	var payload gopacket.Payload
+	var response layers.ICMPv4
 
-func ICMPResponse(packet Packet) (Packet, error) {
-	if packet.Protocol() != ProtoICMP {
-		return nil, errors.New("Not ICMP packet")
-	}
-	data := packet.Data()
-	if len(data) < 1 {
-		return nil, ErrorTruncated
-	}
-	icmpType := ICMPType(data[0])
-	switch icmpType {
-	// Echo request
-	case 8:
-		//  0                   1                   2                   3
-		//  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-		// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-		// |     Type      |     Code      |          Checksum             |
-		// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-		// |           Identifier          |        Sequence Number        |
-		// +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-		// |     Data ...
-		// +-+-+-+-+-
-		if len(data) < 8 {
-			return nil, ErrorTruncated
-		}
-		// Set type to Echo Reply
-		data[0] = 0
+	switch icmp.TypeCode.Type() {
+	case layers.ICMPv4TypeEchoRequest:
+		response = *icmp
+		response.TypeCode = layers.CreateICMPv4TypeCode(
+			layers.ICMPv4TypeEchoReply, icmp.TypeCode.Code())
+		payload = icmp.LayerPayload()
 
-		// Compute checksum
-		bo.PutUint16(data[2:], 0)
-		chk := Checksum(data)
-		bo.PutUint16(data[2:], chk)
-
-		response := packet.Copy()
-		response.SetSrc(packet.Dst())
-		response.SetDst(packet.Src())
-		response.SetData(data)
-
-		return response, nil
+	default:
+		return nil, nil
 	}
 
-	return nil, nil
+	// Response IP header.
+	layer := packet.Layer(layers.LayerTypeIPv4)
+	if layer == nil {
+		return nil, errors.New("non-IPv4 packet for ICMPv4")
+	}
+	ip, _ := layer.(*layers.IPv4)
+	ipLayer := *ip
+	ipLayer.SrcIP = ip.DstIP
+	ipLayer.DstIP = ip.SrcIP
+
+	buffer := gopacket.NewSerializeBuffer()
+	err := gopacket.SerializeLayers(buffer, gopacket.SerializeOptions{
+		FixLengths:       false,
+		ComputeChecksums: true,
+	}, &ipLayer, &response, payload)
+	if err != nil {
+		return nil, err
+	}
+
+	return buffer.Bytes(), nil
 }

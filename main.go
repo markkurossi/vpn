@@ -19,6 +19,8 @@ import (
 	"os/signal"
 	"path"
 
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
 	"github.com/markkurossi/cloudsdk/api/auth"
 	"github.com/markkurossi/vpn/cli"
 	"github.com/markkurossi/vpn/dns"
@@ -149,57 +151,59 @@ func main() {
 		os.Exit(0)
 	}()
 
-	fmt.Printf("Processing DNS requests\n")
 	for {
 		data, err := tunnel.Read()
 		if err != nil {
 			log.Fatal(err)
 		}
-		packet, err := ip.Parse(data)
-		if err != nil {
-			if *verboseFlag > 0 {
-				fmt.Printf("%s: packet:\n%s", err, hex.Dump(data))
+
+		// Check IP version.
+		var firstLayerDecoder gopacket.Decoder
+		version := data[0] >> 4
+		switch data[0] >> 4 {
+		case 4:
+			firstLayerDecoder = layers.LayerTypeIPv4
+
+		case 6:
+			firstLayerDecoder = layers.LayerTypeIPv6
+
+		default:
+			log.Printf("Invalid IP version %d\n", version)
+			continue
+		}
+
+		packet := gopacket.NewPacket(data, firstLayerDecoder,
+			gopacket.DecodeOptions{
+				Lazy:   true,
+				NoCopy: true,
+			})
+
+		if layer := packet.Layer(layers.LayerTypeICMPv4); layer != nil {
+			icmp, _ := layer.(*layers.ICMPv4)
+			response, err := ip.ICMPv4Response(packet, icmp)
+			if err != nil {
+				fmt.Printf("Failed to create ICMPv4 response: %v\n", err)
+			} else if response != nil {
+				_, err = tunnel.Write(response)
 			}
 			continue
 		}
-		switch packet.Protocol() {
-		case ip.ProtoICMP:
-			response, err := ip.ICMPResponse(packet)
-			if err != nil {
-				fmt.Printf("Failed to create ICMP response: %v\n", err)
-			} else if response != nil {
-				_, err = tunnel.Write(response.Marshal())
+		if layer := packet.Layer(layers.LayerTypeDNS); layer != nil {
+			dns, _ := layer.(*layers.DNS)
+			if !dns.QR {
+				go func() {
+					err := proxy.Query(packet, dns)
+					if err != nil {
+						fmt.Printf("DNS query failed: %s\n", err)
+					}
+				}()
 			}
+			continue
+		}
 
-		case ip.ProtoUDP:
-			udp, err := ip.ParseUDP(packet)
-			if err != nil {
-				fmt.Printf("Failed to parse UDP packet: %v\n", err)
-				continue
-			}
-			switch udp.Dst {
-			case 53:
-				d, err := dns.Parse(udp.Data)
-				if err != nil {
-					fmt.Printf("Failed to parse DNS packet: %v\n", err)
-					continue
-				}
-				if d.Query() {
-					go func() {
-						err := proxy.Query(udp, d)
-						if err != nil {
-							fmt.Printf("DNS query failed: %s\n", err)
-						}
-					}()
-				}
-
-			default:
-				fmt.Printf("UDP %d->%d\n%s", udp.Src, udp.Dst,
-					hex.Dump(udp.Data))
-			}
-
-		default:
-			fmt.Printf("Packet: %s\n%s", packet, hex.Dump(packet.Data()))
+		fmt.Printf("Unhandled packet:%s\n", packet)
+		if *verboseFlag > 0 {
+			fmt.Printf("%s", hex.Dump(data))
 		}
 	}
 }

@@ -10,6 +10,7 @@ package dns
 
 import (
 	"crypto/rand"
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -17,7 +18,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/markkurossi/vpn/ip"
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
+)
+
+var (
+	bo = binary.BigEndian
 )
 
 type Proxy struct {
@@ -30,13 +36,13 @@ type Proxy struct {
 	client      *UDPClient
 	out         io.Writer
 	m           sync.Mutex
-	pending     map[ID]*Pending
+	pending     map[uint16]*Pending
 }
 
 type Pending struct {
 	timestamp time.Time
-	udp       *ip.UDP
-	id        ID
+	packet    gopacket.Packet
+	id        uint16
 }
 
 type EventType int
@@ -59,6 +65,16 @@ func (t EventType) String() string {
 	return fmt.Sprintf("{EventType %d}", t)
 }
 
+var decodeOptions = gopacket.DecodeOptions{
+	Lazy:   true,
+	NoCopy: true,
+}
+
+var serializeOptions = gopacket.SerializeOptions{
+	FixLengths:       true,
+	ComputeChecksums: true,
+}
+
 type Event struct {
 	Type   EventType
 	Labels Labels
@@ -74,26 +90,27 @@ func NewProxy(server string, out io.Writer) (*Proxy, error) {
 		chResponses: ch,
 		client:      client,
 		out:         out,
-		pending:     make(map[ID]*Pending),
+		pending:     make(map[uint16]*Pending),
 	}
 	go proxy.reader()
 	return proxy, nil
 }
 
-func (p *Proxy) Query(udp *ip.UDP, dns *DNS) error {
+func (p *Proxy) Query(packet gopacket.Packet, dns *layers.DNS) error {
 	var qPassthrough bool
 
 	for _, q := range dns.Questions {
+		labels := NewLabels(string(q.Name))
 		for _, black := range p.Blacklist {
-			if q.Labels.Match(black) {
+			if labels.Match(black) {
 				if p.Verbose > 1 {
-					fmt.Printf(" \U0001F6D1 %s (%s)\n", q.Labels, black)
+					fmt.Printf(" \U0001F6D1 %s (%s)\n", labels, black)
 				}
-				p.event(EventBlock, q.Labels)
-				return p.nonExistingDomain(udp, dns)
+				p.event(EventBlock, labels)
+				return p.nonExistingDomain(packet, dns)
 			}
 		}
-		if p.DoH != nil && p.DoH.Passthrough(q.Labels.String()) {
+		if p.DoH != nil && p.DoH.Passthrough(labels.String()) {
 			qPassthrough = true
 		}
 		if p.Verbose > 0 {
@@ -101,90 +118,85 @@ func (p *Proxy) Query(udp *ip.UDP, dns *DNS) error {
 			if qPassthrough {
 				marker = "\u2B50"
 			}
-			fmt.Printf(" %s %s %s %s\n", marker, q.Labels, q.QTYPE, q.QCLASS)
+			fmt.Printf(" %s %s %s %s\n", marker, labels, q.Type, q.Class)
 		}
-		p.event(EventQuery, q.Labels)
+		p.event(EventQuery, labels)
 	}
 
-	var data []byte
-	var err error
-
-	if false {
-		data = udp.Data
-	} else {
-		data, err = dns.Marshal()
-		if err != nil {
-			return err
-		}
-	}
-
-	if len(data) < HeaderLen {
-		return ip.ErrorTruncated
-	}
+	data := dns.Contents
 
 	// RFC 8467 padding.
 	if !p.NoPad && p.DoH != nil && !qPassthrough {
 		dataLen := len(data)
 
 		// Does the request have OPT record?
-		opt := dns.GetAdditional(OPT)
+		var opt *layers.DNSResourceRecord
+		for _, add := range dns.Additionals {
+			if add.Type == layers.DNSTypeOPT {
+				opt = &add
+				break
+			}
+		}
 		if opt == nil {
 			// Add OPT record.
-			opt = &Record{
-				TYPE:  OPT,
-				CLASS: 4096,
+			dns.Additionals = append(dns.Additionals, layers.DNSResourceRecord{
+				Type:  layers.DNSTypeOPT,
+				Class: 4096,
 				TTL:   0,
-			}
-			dns.Additional = append(dns.Additional, opt)
+			})
+			opt = &dns.Additionals[len(dns.Additionals)-1]
 			dataLen += 11
 		}
 		// Does the OPT record have a padding?
-		pad := opt.HasOpt(OptPadding)
+		var pad *layers.DNSOPT
+		for _, o := range opt.OPT {
+			if o.Code == layers.DNSOptionCodePadding {
+				pad = &o
+				break
+			}
+		}
 		if pad == nil {
 			dataLen += 4
 			// Pad to the closest multiple of 128 octects.
+			var padLen int
 			if dataLen%128 != 0 {
-				padLen := 128 - dataLen%128
+				padLen = 128 - dataLen%128
 
-				old := opt.RDATA.Len()
-				rdata := make([]byte, old+4+padLen)
-				copy(rdata, opt.RDATA.Bytes())
-
-				bo.PutUint16(rdata[old:], uint16(OptPadding))
-				bo.PutUint16(rdata[old+2:], uint16(padLen))
-
-				opt.RDATA.Data = rdata
-				opt.RDATA.Start = 0
-				opt.RDATA.End = len(rdata)
+				opt.OPT = append(opt.OPT, layers.DNSOPT{
+					Code: layers.DNSOptionCodePadding,
+					Data: make([]byte, padLen),
+				})
 			}
 
 			// Marshal padded message.
-			data, err = dns.Marshal()
+			buffer := gopacket.NewSerializeBuffer()
+			err := gopacket.SerializeLayers(buffer, serializeOptions, dns)
 			if err != nil {
 				return err
 			}
+			data = buffer.Bytes()
 			if p.Verbose > 2 {
-				fmt.Printf("Padded query:\n%s", hex.Dump(data))
+				fmt.Printf("Padded query: pad=%d:\n%s", padLen, hex.Dump(data))
 			}
 		}
 	}
 
 	pending := &Pending{
 		timestamp: time.Now(),
-		udp:       udp,
-		id:        ID(bo.Uint16(data)),
+		packet:    packet,
+		id:        dns.ID,
 	}
 
 	// Allocate ID
 	p.m.Lock()
-	var id ID
+	var id uint16
 idalloc:
 	for {
 		var idbuf [2]byte
 
 		for i := 0; i < 10; i++ {
 			rand.Read(idbuf[:])
-			id = ID(bo.Uint16(idbuf[:]))
+			id = bo.Uint16(idbuf[:])
 			_, ok := p.pending[id]
 			if !ok {
 				p.pending[id] = pending
@@ -228,42 +240,48 @@ func (p *Proxy) event(t EventType, labels Labels) {
 	}
 }
 
-func (p *Proxy) nonExistingDomain(udp *ip.UDP, q *DNS) error {
-	reply := &DNS{
-		ID:        q.ID,
-		QR:        true,
-		Opcode:    q.Opcode,
-		AA:        true, // XXX false in example,
-		TC:        false,
-		RD:        q.RD,
-		RA:        false,
-		RCODE:     NXDomain,
-		Questions: q.Questions,
-	}
-
-	msg, err := reply.Marshal()
+func (p *Proxy) nonExistingDomain(packet gopacket.Packet, q *layers.DNS) error {
+	responseLayers, err := udpResponse(packet)
 	if err != nil {
 		return err
 	}
-	udp.Data = msg
-	udp.Swap()
-	_, err = p.out.Write(udp.Marshal())
+
+	responseLayers = append(responseLayers, &layers.DNS{
+		ID:           q.ID,
+		QR:           true,
+		OpCode:       q.OpCode,
+		AA:           true, // XXX false in example,
+		TC:           false,
+		RD:           q.RD,
+		RA:           false,
+		ResponseCode: layers.DNSResponseCodeNXDomain,
+		Questions:    q.Questions,
+	})
+
+	buffer := gopacket.NewSerializeBuffer()
+	err = gopacket.SerializeLayers(buffer, serializeOptions, responseLayers...)
+	if err != nil {
+		return err
+	}
+
+	_, err = p.out.Write(buffer.Bytes())
 
 	return err
 }
 
 func (p *Proxy) reader() {
 	for msg := range p.client.C {
-		bak := make([]byte, len(msg))
-		copy(bak, msg)
 
-		dns, err := Parse(msg)
-		if err != nil {
-			log.Printf("Proxy: failed to parse server message: %s\n", err)
+		packet := gopacket.NewPacket(msg, layers.LayerTypeDNS, decodeOptions)
+		layer := packet.Layer(layers.LayerTypeDNS)
+		if layer == nil {
+			log.Printf("Proxy: non-DNS server message\n")
 			continue
 		}
+		dns, _ := layer.(*layers.DNS)
+
 		if p.Verbose > 2 {
-			dns.Dump()
+			log.Printf("DNS server response:\n%s", hex.Dump(msg))
 		}
 
 		var pending *Pending
@@ -276,19 +294,72 @@ func (p *Proxy) reader() {
 		p.m.Unlock()
 
 		if !ok {
-			fmt.Printf("Unknown server response:\n")
-			dns.Dump()
+			log.Printf("Unknown server response:\n%s", hex.Dump(msg))
 			continue
 		}
 
-		bo.PutUint16(msg, uint16(pending.id))
+		// Restore original request ID
+		dns.ID = pending.id
 
-		pending.udp.Data = msg
-		pending.udp.Swap()
+		response, err := udpResponse(pending.packet)
+		if err != nil {
+			log.Printf("Can't create UDP response: %s\n", err)
+			continue
+		}
+		response = append(response, dns)
 
-		_, err = p.out.Write(pending.udp.Marshal())
+		buffer := gopacket.NewSerializeBuffer()
+		err = gopacket.SerializeLayers(buffer, serializeOptions, response...)
+		if err != nil {
+			log.Printf("Serialization error: %s\n", err)
+			continue
+		}
+
+		_, err = p.out.Write(buffer.Bytes())
 		if err != nil {
 			log.Printf("Failed to write UDP response: %s\n", err)
 		}
 	}
+}
+
+func udpResponse(packet gopacket.Packet) ([]gopacket.SerializableLayer, error) {
+	var result []gopacket.SerializableLayer
+
+	var ipLayer gopacket.NetworkLayer
+	layer := packet.Layer(layers.LayerTypeIPv4)
+	if layer != nil {
+		ip, _ := layer.(*layers.IPv4)
+		ip4Layer := *ip
+		ip4Layer.SrcIP = ip.DstIP
+		ip4Layer.DstIP = ip.SrcIP
+		result = append(result, &ip4Layer)
+
+		ipLayer = &ip4Layer
+	} else {
+		layer := packet.Layer(layers.LayerTypeIPv6)
+		if layer == nil {
+			return nil, fmt.Errorf("not an IP packet")
+		}
+		ip, _ := layer.(*layers.IPv6)
+		ip6Layer := *ip
+		ip6Layer.SrcIP = ip.DstIP
+		ip6Layer.DstIP = ip.SrcIP
+		result = append(result, &ip6Layer)
+
+		ipLayer = &ip6Layer
+	}
+
+	layer = packet.Layer(layers.LayerTypeUDP)
+	if layer == nil {
+		return nil, fmt.Errorf("no UPD layer in request")
+	}
+	udp, _ := layer.(*layers.UDP)
+	udpLayer := *udp
+	udpLayer.SrcPort = udp.DstPort
+	udpLayer.DstPort = udp.SrcPort
+	udpLayer.SetNetworkLayerForChecksum(ipLayer)
+
+	result = append(result, &udpLayer)
+
+	return result, nil
 }
