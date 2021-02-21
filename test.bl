@@ -84,3 +84,7 @@ tinypass.com
 *.akstat.io
 clientstream.launchdarkly.com
 mobile.launchdarkly.com
+**.api.drift.com
+*.pingdom.net
+*.demdex.net
+notify.bugsnag.com
