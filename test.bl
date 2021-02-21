@@ -46,6 +46,7 @@
 subscribe.washingtonpost.com                                                   3
 **.nile.works
 
+*.home
 **.ad.*
 **.addthis.com
 **.ads.*
@@ -81,3 +82,5 @@ api.hubspot.com
 collector.brandmetrics.com
 tinypass.com
 *.akstat.io
+clientstream.launchdarkly.com
+mobile.launchdarkly.com
