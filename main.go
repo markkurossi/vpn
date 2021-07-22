@@ -1,7 +1,7 @@
 //
 // main.go
 //
-// Copyright (c) 2019-2020 Markku Rossi
+// Copyright (c) 2019-2021 Markku Rossi
 //
 // All rights reserved.
 //
@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net"
 	"os"
 	"os/signal"
 	"path"
@@ -92,7 +93,19 @@ func main() {
 		log.Fatal(err)
 	}
 
-	proxyAddr := fmt.Sprintf("%s:53", *srv)
+	var proxyAddr string
+
+	proxyIP := net.ParseIP(*srv)
+	switch len(proxyIP) {
+	case 4:
+		proxyAddr = fmt.Sprintf("%s:53", *srv)
+
+	case 16:
+		proxyAddr = fmt.Sprintf("[%s]:53", *srv)
+
+	default:
+		log.Fatalf("Invalid proxy address: %s\n", *srv)
+	}
 	fmt.Printf("Starting proxy with DNS server %s\n", proxyAddr)
 
 	proxy, err := dns.NewProxy(proxyAddr, tunnel)
