@@ -68,6 +68,7 @@ ad-delivery.net
 *.sanomagames.com
 
 # Analytics
+*.my1337jog.run
 **.analytics.**
 **.geolocation.**
 **.ipinfo.io
@@ -88,3 +89,5 @@ mobile.launchdarkly.com
 *.pingdom.net
 *.demdex.net
 notify.bugsnag.com
+**.zwyr157wwiu6eior.com
+**.salesforceliveagent.com
