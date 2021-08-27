@@ -1,7 +1,7 @@
 //
 // client.go
 //
-// Copyright (c) 2019 Markku Rossi
+// Copyright (c) 2019-2021 Markku Rossi
 //
 // All rights reserved.
 //
@@ -121,7 +121,7 @@ func (client *Client) Resolve(name string) ([]ResolveResult, error) {
 		OpCode: layers.DNSOpCodeQuery,
 		RD:     true,
 		Questions: []layers.DNSQuestion{
-			layers.DNSQuestion{
+			{
 				Name:  []byte(name),
 				Type:  layers.DNSTypeA,
 				Class: layers.DNSClassIN,

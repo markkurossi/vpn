@@ -1,7 +1,7 @@
 //
 // dns_darwin.go
 //
-// Copyright (c) 2019 Markku Rossi
+// Copyright (c) 2019-2021 Markku Rossi
 //
 // All rights reserved.
 //
@@ -64,9 +64,9 @@ func RestoreServers(servers []string) error {
 
 func FlushCache() error {
 	for _, cmd := range [][]string{
-		[]string{"killall", "-HUP", "mDNSResponder"},
-		[]string{"killall", "mDNSResponderHelper"},
-		[]string{"dscacheutil", "-flushcache"},
+		{"killall", "-HUP", "mDNSResponder"},
+		{"killall", "mDNSResponderHelper"},
+		{"dscacheutil", "-flushcache"},
 	} {
 		err := exec.Command(cmd[0], cmd[1:]...).Run()
 		if err != nil {

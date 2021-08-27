@@ -198,6 +198,9 @@ func main() {
 				fmt.Printf("Failed to create ICMPv4 response: %v\n", err)
 			} else if response != nil {
 				_, err = tunnel.Write(response)
+				if err != nil {
+					fmt.Printf("Failed to send ICMPv4 response: %v\n", err)
+				}
 			}
 			continue
 		}

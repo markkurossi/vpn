@@ -1,7 +1,7 @@
 //
 // display.go
 //
-// Copyright (c) 2019 Markku Rossi
+// Copyright (c) 2019-2021 Markku Rossi
 //
 // All rights reserved.
 //
@@ -160,7 +160,7 @@ func printStats(out io.Writer, w, bHeight, qHeight int, b, q map[string]int,
 
 func printMap(out io.Writer, w, row, height int, stats map[string]int) {
 	var keys []string
-	for k, _ := range stats {
+	for k := range stats {
 		keys = append(keys, k)
 	}
 	sort.Slice(keys, func(i, j int) bool {
