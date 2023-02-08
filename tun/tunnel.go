@@ -1,7 +1,7 @@
 //
 // tunnel.go
 //
-// Copyright (c) 2019 Markku Rossi
+// Copyright (c) 2019-2023 Markku Rossi
 //
 // All rights reserved.
 //
@@ -17,13 +17,16 @@ import (
 )
 
 const (
-	DefaultClientIP = "192.168.192.1"   // LocalIP
-	DefaultServerIP = "192.168.192.254" // RemoteIP
+	// DefaultClientIP defines the default tunnel local IP address.
+	DefaultClientIP = "192.168.192.1"
+	// DefaultServerIP defines the default tunnel remote IP address.
+	DefaultServerIP = "192.168.192.254"
 )
 
 // EXT_IP is the VPN server address
 // EXT_GW_IP is the default gw
 
+// Config defines the tunnel configuration information.
 type Config struct {
 	LocalIP   string
 	RemoteIP  string
@@ -33,11 +36,13 @@ type Config struct {
 	GatewayIP string
 }
 
+// Tunnel implements the virtual interface.
 type Tunnel struct {
 	fd   C.int
 	Name string
 }
 
+// Create creates a new virtual interface.
 func Create() (*Tunnel, error) {
 	var namePtr *C.char
 	var errno C.int

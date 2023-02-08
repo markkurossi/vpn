@@ -1,7 +1,7 @@
 //
 // tunnel_linux.go
 //
-// Copyright (c) 2019 Markku Rossi
+// Copyright (c) 2019-2023 Markku Rossi
 //
 // All rights reserved.
 //
@@ -30,6 +30,8 @@ type config struct {
 	Iface string
 }
 
+// Configure configures the virtual interface according to the
+// configuration parameters.
 func (t *Tunnel) Configure(cfg Config) error {
 	for _, command := range setCommands {
 		tmpl := template.Must(template.New("set").Parse(command))
