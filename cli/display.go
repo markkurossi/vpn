@@ -1,7 +1,7 @@
 //
 // display.go
 //
-// Copyright (c) 2019-2021 Markku Rossi
+// Copyright (c) 2019-2023 Markku Rossi
 //
 // All rights reserved.
 //
@@ -31,6 +31,7 @@ var (
 	listMode    bool
 )
 
+// Init initializes the display in raw mode.
 func Init(signals chan os.Signal, events chan dns.Event) {
 	VT100ShowCursor(os.Stdout, false)
 
@@ -61,6 +62,7 @@ func Init(signals chan os.Signal, events chan dns.Event) {
 	}()
 }
 
+// Reset resets the screen and returns it to the cooked mode
 func Reset() {
 	rawMode := exec.Command("/bin/stty", "-raw")
 	rawMode.Stdin = os.Stdin
@@ -68,6 +70,7 @@ func Reset() {
 	VT100ShowCursor(os.Stdout, true)
 }
 
+// Size returns the screen size in rows and columns.
 func Size() (int, int, error) {
 	cmd := exec.Command("stty", "size")
 	cmd.Stdin = os.Stdin
@@ -90,11 +93,11 @@ func Size() (int, int, error) {
 	return h, w, nil
 }
 
+// EventHandler processes DNS resolver events.
 func EventHandler(ch chan dns.Event) {
 	height, width, err := Size()
 	if err != nil {
 		log.Printf("Failed to get screen size: %s", err)
-		height = 24
 		return
 	}
 	bHeight := (height - 2) / 2

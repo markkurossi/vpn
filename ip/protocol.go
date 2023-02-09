@@ -1,7 +1,7 @@
 //
 // protocol.go
 //
-// Copyright (c) 2019 Markku Rossi
+// Copyright (c) 2019-2023 Markku Rossi
 //
 // All rights reserved.
 //
@@ -12,8 +12,10 @@ import (
 	"fmt"
 )
 
+// Protocol defines IP protocol numbers.
 type Protocol uint8
 
+// Supported IP protocol numbers.
 const (
 	ProtoICMP Protocol = 1
 	ProtoTCP  Protocol = 6

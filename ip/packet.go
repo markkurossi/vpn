@@ -1,7 +1,7 @@
 //
 // packet.go
 //
-// Copyright (c) 2019 Markku Rossi
+// Copyright (c) 2019-2023 Markku Rossi
 //
 // All rights reserved.
 //
@@ -14,6 +14,7 @@ import (
 	"net"
 )
 
+// Packet implements an IP packet.
 type Packet interface {
 	Copy() Packet
 
@@ -36,6 +37,7 @@ type Packet interface {
 	SetData(data []byte)
 }
 
+// Parse parses an IP packet.
 func Parse(data []byte) (Packet, error) {
 	if len(data) < 20 {
 		return nil, errors.New("Truncated packet")

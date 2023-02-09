@@ -1,7 +1,7 @@
 //
 // v4.go
 //
-// Copyright (c) 2019 Markku Rossi
+// Copyright (c) 2019-2023 Markku Rossi
 //
 // All rights reserved.
 //
@@ -18,6 +18,7 @@ var (
 	bo = binary.BigEndian
 )
 
+// ParseIPv4 parses the IPv4 packet.
 func ParseIPv4(data []byte) (Packet, error) {
 	if len(data) < 20 {
 		return nil, ErrorTruncated
@@ -50,6 +51,7 @@ func ParseIPv4(data []byte) (Packet, error) {
 	}, nil
 }
 
+// IPv4 implements a parsed IPv4 packet.
 type IPv4 struct {
 	version  int
 	tos      int
@@ -67,6 +69,7 @@ func (p *IPv4) String() string {
 	return fmt.Sprintf("IPv4 %s %s->%s", p.protocol, p.src, p.dst)
 }
 
+// Copy creates an independent copy of the packet.
 func (p *IPv4) Copy() Packet {
 	var packet IPv4
 
@@ -80,10 +83,12 @@ func (p *IPv4) Copy() Packet {
 	return &packet
 }
 
+// Swap swaps packet source and destination IP addresses.
 func (p *IPv4) Swap() {
 	p.src, p.dst = p.dst, p.src
 }
 
+// Marshal encodes the packet into binary data.
 func (p *IPv4) Marshal() []byte {
 	data := make([]byte, 20+len(p.data))
 
@@ -120,6 +125,7 @@ func (p *IPv4) Marshal() []byte {
 	return data
 }
 
+// PseudoHeader returns the IP packet pseudo header.
 func (p *IPv4) PseudoHeader() []byte {
 	data := make([]byte, 12)
 	copy(data, p.src)
@@ -131,54 +137,67 @@ func (p *IPv4) PseudoHeader() []byte {
 	return data
 }
 
+// Version returns the IP version.
 func (p *IPv4) Version() int {
 	return p.version
 }
 
+// TOS returns the packet type-of-service value.
 func (p *IPv4) TOS() int {
 	return p.tos
 }
 
+// ID returns the packet ID.
 func (p *IPv4) ID() uint16 {
 	return p.id
 }
 
+// Flags returns the packet flags.
 func (p *IPv4) Flags() int8 {
 	return p.flags
 }
 
+// Offset returns the packet fragmentation offset.
 func (p *IPv4) Offset() uint16 {
 	return p.offset
 }
 
+// TTL returns the packet TTL.
 func (p *IPv4) TTL() uint8 {
 	return p.ttl
 }
 
+// Protocol returns hte packet IP protocol.
 func (p *IPv4) Protocol() Protocol {
 	return p.protocol
 }
 
+// Src returns the packet source IP address.
 func (p *IPv4) Src() net.IP {
 	return p.src
 }
 
+// SetSrc sets the packet source IP address.
 func (p *IPv4) SetSrc(src net.IP) {
 	p.src = src
 }
 
+// Dst returns the packet destination IP address.
 func (p *IPv4) Dst() net.IP {
 	return p.dst
 }
 
+// SetDst sets the packet destination IP address.
 func (p *IPv4) SetDst(dst net.IP) {
 	p.dst = dst
 }
 
+// Data returns the packet data.
 func (p *IPv4) Data() []byte {
 	return p.data
 }
 
+// SetData sets the packet data.
 func (p *IPv4) SetData(data []byte) {
 	p.data = data
 }

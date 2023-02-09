@@ -1,7 +1,7 @@
 //
 // proxy.go
 //
-// Copyright (c) 2019 Markku Rossi
+// Copyright (c) 2019-2023 Markku Rossi
 //
 // All rights reserved.
 //
@@ -26,6 +26,7 @@ var (
 	bo = binary.BigEndian
 )
 
+// Proxy defines a DNS proxy.
 type Proxy struct {
 	Verbose     int
 	Blacklist   []Labels
@@ -39,14 +40,17 @@ type Proxy struct {
 	pending     map[uint16]*Pending
 }
 
+// Pending defines a pending DNS query.
 type Pending struct {
 	timestamp time.Time
 	packet    gopacket.Packet
 	id        uint16
 }
 
+// EventType defines proxy events.
 type EventType int
 
+// Proxy event types.
 const (
 	EventQuery EventType = iota
 	EventBlock
@@ -75,11 +79,13 @@ var serializeOptions = gopacket.SerializeOptions{
 	ComputeChecksums: true,
 }
 
+// Event defines proxy events.
 type Event struct {
 	Type   EventType
 	Labels Labels
 }
 
+// NewProxy creates a new DNS proxy.
 func NewProxy(server string, out io.Writer) (*Proxy, error) {
 	ch := make(chan []byte)
 	client, err := NewUDPClient(server, ch)
@@ -96,6 +102,7 @@ func NewProxy(server string, out io.Writer) (*Proxy, error) {
 	return proxy, nil
 }
 
+// Query starts a new DNS query.
 func (p *Proxy) Query(packet gopacket.Packet, dns *layers.DNS) error {
 	var qPassthrough bool
 

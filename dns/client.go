@@ -1,7 +1,7 @@
 //
 // client.go
 //
-// Copyright (c) 2019-2021 Markku Rossi
+// Copyright (c) 2019-2023 Markku Rossi
 //
 // All rights reserved.
 //
@@ -20,15 +20,18 @@ import (
 )
 
 var (
+	// ErrorTimeout defines a timeout error.
 	ErrorTimeout = errors.New("timeout")
 )
 
+// UDPClient implements an UDP client.
 type UDPClient struct {
 	Server string
 	Conn   net.Conn
 	C      chan []byte
 }
 
+// NewUDPClient creates a new UDP client.
 func NewUDPClient(server string, c chan []byte) (*UDPClient, error) {
 	conn, err := net.Dial("udp", server)
 	if err != nil {
@@ -62,6 +65,7 @@ func (dns *UDPClient) Write(data []byte) error {
 	return err
 }
 
+// Client implements DNS client.
 type Client struct {
 	udp     *UDPClient
 	readerC chan []byte
@@ -70,6 +74,7 @@ type Client struct {
 	pending map[uint16]chan *layers.DNS
 }
 
+// NewClient creates a new DNS client.
 func NewClient(server string) (*Client, error) {
 	readerC := make(chan []byte)
 	udp, err := NewUDPClient(server, readerC)
@@ -109,11 +114,13 @@ func (client *Client) handler() {
 	}
 }
 
+// ResolveResult provides DNS resolve results.
 type ResolveResult struct {
 	Address  string
 	NotAfter time.Time
 }
 
+// Resolve resolves the DNS name.
 func (client *Client) Resolve(name string) ([]ResolveResult, error) {
 	q := &layers.DNS{
 		ID:     client.nextID,

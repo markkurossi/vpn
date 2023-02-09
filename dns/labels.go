@@ -1,5 +1,5 @@
 //
-// Copyright (c) 2019-2020 Markku Rossi
+// Copyright (c) 2019-2023 Markku Rossi
 //
 // All rights reserved.
 //
@@ -10,8 +10,10 @@ import (
 	"strings"
 )
 
+// Labels define DNS labels.
 type Labels []string
 
+// NewLabels creates new labels instance from the argument string.q
 func NewLabels(name string) Labels {
 	return strings.Split(name, ".")
 }
@@ -20,6 +22,7 @@ func (l Labels) String() string {
 	return strings.Join(l, ".")
 }
 
+// Match tests if the argument labels match this label instance.
 func (l Labels) Match(o Labels) bool {
 	return glob(l, o)
 }

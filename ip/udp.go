@@ -1,7 +1,7 @@
 //
 // udp.go
 //
-// Copyright (c) 2019 Markku Rossi
+// Copyright (c) 2019-2023 Markku Rossi
 //
 // All rights reserved.
 //
@@ -14,9 +14,11 @@ import (
 )
 
 const (
+	// UDPHeaderLen defines the length of the UDP datagram header.
 	UDPHeaderLen = 8
 )
 
+// UDP implements and UDP datagram.
 type UDP struct {
 	IP   Packet
 	Src  uint16
@@ -24,6 +26,7 @@ type UDP struct {
 	Data []byte
 }
 
+// ParseUDP parses the UPD datagram.
 func ParseUDP(ip Packet) (*UDP, error) {
 	if ip.Protocol() != ProtoUDP {
 		return nil, errors.New("Not UDP packet")
@@ -69,6 +72,7 @@ func ParseUDP(ip Packet) (*UDP, error) {
 	}, nil
 }
 
+// ParseUDPPacket parses the UDP packet.
 func ParseUDPPacket(data []byte) (*UDP, error) {
 	packet, err := Parse(data)
 	if err != nil {
@@ -83,11 +87,13 @@ func ParseUDPPacket(data []byte) (*UDP, error) {
 	}
 }
 
+// Swap swaps the datagram source and destination addresses and ports.
 func (udp *UDP) Swap() {
 	udp.IP.Swap()
 	udp.Src, udp.Dst = udp.Dst, udp.Src
 }
 
+// Marshal encodes the UDP datagram into binary data.
 func (udp *UDP) Marshal() []byte {
 	data := make([]byte, UDPHeaderLen+len(udp.Data))
 

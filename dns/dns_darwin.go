@@ -1,7 +1,7 @@
 //
 // dns_darwin.go
 //
-// Copyright (c) 2019-2021 Markku Rossi
+// Copyright (c) 2019-2023 Markku Rossi
 //
 // All rights reserved.
 //
@@ -18,6 +18,7 @@ var (
 	reServer = regexp.MustCompilePOSIX(`[[:space:]]+nameserver\[[[:digit:]]+\][[:space:]]+:[[:space:]]+([[:^space:]]+)`)
 )
 
+// GetServers returns the list of system DNS servers.
 func GetServers() ([]string, error) {
 	// $ scutil --dns | grep nameserver
 	// nameserver[0] : 192.168.99.1
@@ -45,6 +46,7 @@ func GetServers() ([]string, error) {
 	return result, nil
 }
 
+// SetServers sets the system DNS servers.
 func SetServers(servers []string) error {
 	if len(servers) == 0 {
 		return fmt.Errorf("no DNS servers specified")
@@ -56,12 +58,14 @@ func SetServers(servers []string) error {
 	return exec.Command(args[0], args[1:]...).Run()
 }
 
+// RestoreServers restores the system DNS servers.
 func RestoreServers(servers []string) error {
 	// networksetup -setdnsservers Wi-Fi empty
 	args := []string{"networksetup", "-setdnsservers", "Wi-Fi", "empty"}
 	return exec.Command(args[0], args[1:]...).Run()
 }
 
+// FlushCache flushes DNS cache.
 func FlushCache() error {
 	for _, cmd := range [][]string{
 		{"killall", "-HUP", "mDNSResponder"},

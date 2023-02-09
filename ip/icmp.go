@@ -1,7 +1,7 @@
 //
 // icmp.go
 //
-// Copyright (c) 2019 Markku Rossi
+// Copyright (c) 2019-2023 Markku Rossi
 //
 // All rights reserved.
 //
@@ -15,6 +15,7 @@ import (
 	"github.com/google/gopacket/layers"
 )
 
+// ICMPv4Response creates an ICMPv4 response packet.
 func ICMPv4Response(packet gopacket.Packet, icmp *layers.ICMPv4) (
 	[]byte, error) {
 

@@ -1,7 +1,7 @@
 //
 // main.go
 //
-// Copyright (c) 2019-2021 Markku Rossi
+// Copyright (c) 2019-2023 Markku Rossi
 //
 // All rights reserved.
 //
@@ -29,6 +29,7 @@ import (
 	"github.com/markkurossi/vpn/tun"
 )
 
+// ProxyConfig defines proxy configuration information.
 type ProxyConfig struct {
 	ClientID      string `json:"client_id"`
 	ClientSecret  string `json:"client_secret"`

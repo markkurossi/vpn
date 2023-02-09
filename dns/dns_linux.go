@@ -1,7 +1,7 @@
 //
 // dns_linux.go
 //
-// Copyright (c) 2019 Markku Rossi
+// Copyright (c) 2019-2023 Markku Rossi
 //
 // All rights reserved.
 //
@@ -51,6 +51,7 @@ func getServers() ([]server, error) {
 	return result, nil
 }
 
+// GetServers returns the list of system DNS servers.
 func GetServers() ([]string, error) {
 	servers, err := getServers()
 	if err != nil {
@@ -66,6 +67,7 @@ func GetServers() ([]string, error) {
 	return result, nil
 }
 
+// SetServers sets the system DNS servers.
 func SetServers(servers []string) error {
 	old, err := getServers()
 	if err != nil {
@@ -80,10 +82,12 @@ func SetServers(servers []string) error {
 	return cmd.Run()
 }
 
+// RestoreServers restores the system DNS servers.
 func RestoreServers(servers []string) error {
 	return SetServers(servers)
 }
 
+// FlushCache flushes DNS cache.
 func FlushCache() error {
 	return exec.Command("systemd-resolve", "--flush-caches").Run()
 }

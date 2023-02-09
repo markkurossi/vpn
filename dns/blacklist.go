@@ -1,7 +1,7 @@
 //
 // blacklist.go
 //
-// Copyright (c) 2019 Markku Rossi
+// Copyright (c) 2019-2023 Markku Rossi
 //
 // All rights reserved.
 //
@@ -14,6 +14,7 @@ import (
 	"strings"
 )
 
+// ReadBlacklist reads the blacklist from the file.
 func ReadBlacklist(name string) ([]Labels, error) {
 	file, err := os.Open(name)
 	if err != nil {
