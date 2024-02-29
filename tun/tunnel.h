@@ -1,10 +1,10 @@
-//
-// tunnel.h
-//
-// Copyright (c) 2019 Markku Rossi
-//
-// All rights reserved.
-//
+/*
+ * tunnel.h
+ *
+ * Copyright (c) 2019-2024 Markku Rossi
+ *
+ * All rights reserved.
+ */
 
 #ifndef TUNNEL_H
 #define TUNNEL_H
