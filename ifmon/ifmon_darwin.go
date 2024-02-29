@@ -123,7 +123,7 @@ func platformCreate() (C.int, error) {
 
 	ret := C.ifmon_create(&errno)
 	if ret < 0 {
-		return 0, errors.New(C.GoString(C.strerror(errno)))
+		return -1, errors.New(C.GoString(C.strerror(errno)))
 	}
 
 	return ret, nil
