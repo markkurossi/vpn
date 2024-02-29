@@ -11,6 +11,6 @@
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
 vpn
-utils/nslookup/nslookup
-utils/cname/cname
-utils/ifmon/ifmon
+cmd/nslookup/nslookup
+cmd/cname/cname
+cmd/ifmon/ifmon
