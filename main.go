@@ -1,7 +1,7 @@
 //
 // main.go
 //
-// Copyright (c) 2019-2023 Markku Rossi
+// Copyright (c) 2019-2024 Markku Rossi
 //
 // All rights reserved.
 //
@@ -142,6 +142,11 @@ func main() {
 		proxy.Events = events
 		cli.Init(c, events)
 		go cli.EventHandler(events)
+
+		events <- dns.Event{
+			Type:   dns.EventConfig,
+			Labels: []string{proxyAddr},
+		}
 	}
 
 	fmt.Printf("Setting proxy DNS server\n")
