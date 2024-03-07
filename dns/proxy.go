@@ -1,7 +1,7 @@
 //
 // proxy.go
 //
-// Copyright (c) 2019-2023 Markku Rossi
+// Copyright (c) 2019-2024 Markku Rossi
 //
 // All rights reserved.
 //
@@ -54,11 +54,13 @@ type EventType int
 const (
 	EventQuery EventType = iota
 	EventBlock
+	EventConfig
 )
 
 var eventTypes = map[EventType]string{
-	EventQuery: "?",
-	EventBlock: "'u00d7",
+	EventQuery:  "?",
+	EventBlock:  "\u00d7",
+	EventConfig: "\u2672",
 }
 
 func (t EventType) String() string {

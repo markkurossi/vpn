@@ -1,7 +1,7 @@
 //
 // display.go
 //
-// Copyright (c) 2019-2023 Markku Rossi
+// Copyright (c) 2019-2024 Markku Rossi
 //
 // All rights reserved.
 //
@@ -29,6 +29,7 @@ var (
 	blockedList []string
 	queriesList []string
 	listMode    bool
+	dnsServer   string
 )
 
 // Init initializes the display in raw mode.
@@ -100,8 +101,8 @@ func EventHandler(ch chan dns.Event) {
 		log.Printf("Failed to get screen size: %s", err)
 		return
 	}
-	bHeight := (height - 2) / 2
-	qHeight := height - bHeight - 2
+	bHeight := (height - 3) / 2
+	qHeight := height - bHeight - 3
 
 	var countQueries, countBlocks int
 
@@ -130,6 +131,9 @@ func EventHandler(ch chan dns.Event) {
 			if len(blockedList) > height {
 				blockedList = blockedList[:height]
 			}
+
+		case dns.EventConfig:
+			dnsServer = label
 		}
 		printStats(os.Stdout, width, bHeight, qHeight, blocked, queries,
 			blockedList, queriesList, countBlocks, countQueries)
@@ -159,6 +163,8 @@ func printStats(out io.Writer, w, bHeight, qHeight int, b, q map[string]int,
 	} else {
 		printMap(out, w, bHeight+3, qHeight, q)
 	}
+
+	statusLine(out, bHeight+2+qHeight+1, w, fmt.Sprintf("DNS: %s", dnsServer))
 }
 
 func printMap(out io.Writer, w, row, height int, stats map[string]int) {
