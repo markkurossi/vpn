@@ -11,6 +11,7 @@ import "C"
 
 import (
 	"errors"
+	"fmt"
 	"log"
 )
 
@@ -22,7 +23,7 @@ const (
 
 // Layers of event source.
 const (
-	KevAnyClass int = iota
+	KevAnyClass C.u_int32_t = iota
 	KevNetworkClass
 	KevIokitClass
 	KevSystemClass
@@ -33,7 +34,7 @@ const (
 
 // Components within layer.
 const (
-	KevAnySubclass int = iota
+	KevAnySubclass C.u_int32_t = iota
 	KevInetSubclass
 	KevDlSubclass
 	_
@@ -45,7 +46,7 @@ const (
 // KevInetSubclass event codes.
 const (
 	// Userland configured IP address.
-	KevInetNewAddr = iota + 1
+	KevInetNewAddr C.u_int32_t = iota + 1
 	// Address changed event.
 	KevInetChangedAddr
 	// IPv6 address was deleted.
@@ -65,6 +66,27 @@ const (
 	// ARP resolution succeeded for route.
 	KevInetArprtralive
 )
+
+var KevInetSubclassCodes = map[C.u_int32_t]string{
+	KevInetNewAddr:       "KevInetNewAddr",
+	KevInetChangedAddr:   "KevInetChangedAddr",
+	KevInetAddrDeleted:   "KevInetAddrDeleted",
+	KevInetSifdstaddr:    "KevInetSifdstaddr",
+	KevInetSifbrdaddr:    "KevInetSifbrdaddr",
+	KevInetSifnetmask:    "KevInetSifnetmask",
+	KevInetArpcollision:  "KevInetArpcollision",
+	KevInetPortinuse:     "KevInetPortinuse",
+	KevInetArprtrfailure: "KevInetArprtrfailure",
+	KevInetArprtralive:   "KevInetArprtralive",
+}
+
+func KevInetSubclassCodeString(code C.u_int32_t) string {
+	name, ok := KevInetSubclassCodes[code]
+	if ok {
+		return name
+	}
+	return fmt.Sprintf("{KevInetSubclassCode %d}", code)
+}
 
 // KevDlSubclass event codes.
 const (
@@ -103,20 +125,38 @@ const (
 // KevInet6Subclass event codes.
 const (
 	// Userland configured IPv6 address.
-	KevInet6NewUserADDR = iota + 1
+	KevInet6NewUserAddr = iota + 1
 	// Address changed event (future).
-	KevInet6ChangedADDR
+	KevInet6ChangedAddr
 	// IPv6 address was deleted.
-	KevInet6AddrDELETED
+	KevInet6AddrDeleted
 	// Autoconf LL address appeared.
-	KevInet6NewLlADDR
+	KevInet6NewLlAddr
 	// Autoconf address has appeared.
-	KevInet6NewRtadvADDR
+	KevInet6NewRtadvAddr
 	// Default router detected.
-	KevInet6DEFROUTER
+	KevInet6Defrouter
 	// Asking for the NAT64-prefix.
 	KevInet6RequestNat64Prefix
 )
+
+var KevInet6SubclassCodes = map[C.u_int32_t]string{
+	KevInet6NewUserAddr:        "KevInet6NewUserAddr",
+	KevInet6ChangedAddr:        "KevInet6ChangedAddr",
+	KevInet6AddrDeleted:        "KevInet6AddrDeleted",
+	KevInet6NewLlAddr:          "KevInet6NewLlAddr",
+	KevInet6NewRtadvAddr:       "KevInet6NewRtadvAddr",
+	KevInet6Defrouter:          "KevInet6Defrouter",
+	KevInet6RequestNat64Prefix: "KevInet6RequestNat64Prefix",
+}
+
+func KevInet6SubclassCodeString(code C.u_int32_t) string {
+	name, ok := KevInet6SubclassCodes[code]
+	if ok {
+		return name
+	}
+	return fmt.Sprintf("{KevInet6SubclassCode %d}", code)
+}
 
 func platformCreate() (C.int, error) {
 	var errno C.int
@@ -133,12 +173,31 @@ func platformWait(fd C.int) error {
 	var cls, subcls, code C.u_int32_t
 	var errno C.int
 
-	ret := C.ifmon_wait(fd, &cls, &subcls, &code, &errno)
-	if ret < 0 {
-		return errors.New(C.GoString(C.strerror(errno)))
+	for {
+		ret := C.ifmon_wait(fd, &cls, &subcls, &code, &errno)
+		if ret < 0 {
+			return errors.New(C.GoString(C.strerror(errno)))
+		}
+		if cls != KevNetworkClass {
+			continue
+		}
+		switch subcls {
+		case KevInetSubclass:
+			log.Printf("inet:  code=%v", KevInetSubclassCodeString(code))
+			switch code {
+			case KevInetNewAddr, KevInetChangedAddr:
+				return nil
+			}
+		case KevInet6Subclass:
+			log.Printf("inet6: code=%v", KevInet6SubclassCodeString(code))
+			switch code {
+			case KevInet6NewUserAddr, KevInet6ChangedAddr:
+				return nil
+			}
+		default:
+			continue
+		}
 	}
-
-	log.Printf("cls=%v, subcls=%v, code=%v", cls, subcls, code)
 
 	return nil
 }
