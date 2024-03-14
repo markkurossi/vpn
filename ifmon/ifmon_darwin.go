@@ -67,6 +67,8 @@ const (
 	KevInetArprtralive
 )
 
+// KevInetSubclassCodes defines the names for KevInetSubclass event
+// codes.
 var KevInetSubclassCodes = map[C.u_int32_t]string{
 	KevInetNewAddr:       "KevInetNewAddr",
 	KevInetChangedAddr:   "KevInetChangedAddr",
@@ -80,6 +82,8 @@ var KevInetSubclassCodes = map[C.u_int32_t]string{
 	KevInetArprtralive:   "KevInetArprtralive",
 }
 
+// KevInetSubclassCodeString returns the string name of the
+// KevInetSubclass code.
 func KevInetSubclassCodeString(code C.u_int32_t) string {
 	name, ok := KevInetSubclassCodes[code]
 	if ok {
@@ -140,6 +144,8 @@ const (
 	KevInet6RequestNat64Prefix
 )
 
+// KevInet6SubclassCodes defines the names for the KevInet6Subclass
+// event codes.
 var KevInet6SubclassCodes = map[C.u_int32_t]string{
 	KevInet6NewUserAddr:        "KevInet6NewUserAddr",
 	KevInet6ChangedAddr:        "KevInet6ChangedAddr",
@@ -150,6 +156,8 @@ var KevInet6SubclassCodes = map[C.u_int32_t]string{
 	KevInet6RequestNat64Prefix: "KevInet6RequestNat64Prefix",
 }
 
+// KevInet6SubclassCodeString returns the string name of the
+// KevInet6Subclass code.
 func KevInet6SubclassCodeString(code C.u_int32_t) string {
 	name, ok := KevInet6SubclassCodes[code]
 	if ok {
@@ -198,6 +206,4 @@ func platformWait(fd C.int) error {
 			continue
 		}
 	}
-
-	return nil
 }
