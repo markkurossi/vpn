@@ -1,7 +1,7 @@
 //
 // client.go
 //
-// Copyright (c) 2019-2023 Markku Rossi
+// Copyright (c) 2019-2024 Markku Rossi
 //
 // All rights reserved.
 //
@@ -58,6 +58,11 @@ func (dns *UDPClient) reader() error {
 		copy(msg, buf[:n])
 		dns.C <- msg
 	}
+}
+
+// Close closes the UDP client.
+func (dns *UDPClient) Close() error {
+	return dns.Conn.Close()
 }
 
 func (dns *UDPClient) Write(data []byte) error {

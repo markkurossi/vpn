@@ -89,19 +89,38 @@ type Event struct {
 
 // NewProxy creates a new DNS proxy.
 func NewProxy(server string, out io.Writer) (*Proxy, error) {
-	ch := make(chan []byte)
-	client, err := NewUDPClient(server, ch)
+	proxy := &Proxy{
+		out:     out,
+		pending: make(map[uint16]*Pending),
+	}
+	err := proxy.SetServer(server)
 	if err != nil {
 		return nil, err
 	}
-	proxy := &Proxy{
-		chResponses: ch,
-		client:      client,
-		out:         out,
-		pending:     make(map[uint16]*Pending),
-	}
-	go proxy.reader()
 	return proxy, nil
+}
+
+// SetServer sets the DNS server to use for the proxy queries.
+func (p *Proxy) SetServer(server string) error {
+	ch := make(chan []byte)
+	client, err := NewUDPClient(server, ch)
+	if err != nil {
+		close(ch)
+		return err
+	}
+
+	p.m.Lock()
+	old := p.client
+	p.client = client
+	p.chResponses = ch
+	p.m.Unlock()
+
+	go p.reader(client)
+
+	if old != nil {
+	}
+
+	return nil
 }
 
 // Query starts a new DNS query.
@@ -199,6 +218,8 @@ func (p *Proxy) Query(packet gopacket.Packet, dns *layers.DNS) error {
 	// Allocate ID
 	p.m.Lock()
 	var id uint16
+	client := p.client
+	chResponses := p.chResponses
 idalloc:
 	for {
 		var idbuf [2]byte
@@ -232,11 +253,11 @@ idalloc:
 		if err != nil {
 			return err
 		}
-		p.chResponses <- resp
+		chResponses <- resp
 		return nil
 	}
 
-	return p.client.Write(data)
+	return client.Write(data)
 }
 
 func (p *Proxy) event(t EventType, labels Labels) {
@@ -278,8 +299,8 @@ func (p *Proxy) nonExistingDomain(packet gopacket.Packet, q *layers.DNS) error {
 	return err
 }
 
-func (p *Proxy) reader() {
-	for msg := range p.client.C {
+func (p *Proxy) reader(client *UDPClient) {
+	for msg := range client.C {
 
 		packet := gopacket.NewPacket(msg, layers.LayerTypeDNS, decodeOptions)
 		layer := packet.Layer(layers.LayerTypeDNS)

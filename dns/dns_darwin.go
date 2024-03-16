@@ -1,7 +1,7 @@
 //
 // dns_darwin.go
 //
-// Copyright (c) 2019-2023 Markku Rossi
+// Copyright (c) 2019-2024 Markku Rossi
 //
 // All rights reserved.
 //
@@ -31,7 +31,7 @@ func GetServers() ([]string, error) {
 	}
 	matches := reServer.FindAllStringSubmatch(string(output), -1)
 	if matches == nil {
-		return nil, fmt.Errorf("Nameservers not found")
+		return nil, fmt.Errorf("nameservers not found")
 	}
 	var result []string
 	seen := make(map[string]bool)
