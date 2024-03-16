@@ -25,6 +25,7 @@ import (
 	"github.com/markkurossi/cloudsdk/api/auth"
 	"github.com/markkurossi/vpn/cli"
 	"github.com/markkurossi/vpn/dns"
+	"github.com/markkurossi/vpn/ifmon"
 	"github.com/markkurossi/vpn/ip"
 	"github.com/markkurossi/vpn/tun"
 )
@@ -36,6 +37,13 @@ type ProxyConfig struct {
 	TokenEndpoint string `json:"token_endpoint"`
 }
 
+var (
+	tunnel      *tun.Tunnel
+	proxy       *dns.Proxy
+	verbose     int
+	origServers []string
+)
+
 func main() {
 	bl := flag.String("blacklist", "", "DNS blacklist")
 	doh := flag.String("doh", "", "DNS-over-HTTPS URL")
@@ -45,7 +53,7 @@ func main() {
 	srv := flag.String("dns", "", "DNS server to use (default to system DNS)")
 	nopad := flag.Bool("nopad", false, "Do not PAD DoH requests")
 	interactive := flag.Bool("i", false, "Interactive mode")
-	verboseFlag := flag.Int("v", 0, "Verbose output")
+	flag.IntVar(&verbose, "v", 0, "Verbose output")
 	flag.Parse()
 
 	if len(flag.Args()) != 0 {
@@ -55,7 +63,7 @@ func main() {
 	}
 
 	if *interactive {
-		*verboseFlag = 0
+		verbose = 0
 	}
 
 	var blacklist []dns.Labels
@@ -68,20 +76,23 @@ func main() {
 		}
 	}
 
-	origServers, err := dns.GetServers()
+	origServers, err = dns.GetServers()
 	if err != nil {
 		log.Fatal(err)
 	}
 	fmt.Printf("Current DNS servers: %v\n", origServers)
+
+	ifmonC := make(chan bool)
 
 	if len(*srv) == 0 {
 		if len(origServers) == 0 {
 			log.Fatal("DNS server not set and could not get system DNS\n")
 		}
 		*srv = origServers[0]
+		go listenInterfaceChanges(ifmonC)
 	}
 
-	tunnel, err := tun.Create()
+	tunnel, err = tun.Create()
 	if err != nil {
 		log.Fatalf("Failed to create tunnel: %s\n", err)
 	}
@@ -94,26 +105,15 @@ func main() {
 		log.Fatal(err)
 	}
 
-	var proxyAddr string
+	proxyAddr := makeDNSAddr(*srv)
 
-	proxyIP := net.ParseIP(*srv)
-	switch len(proxyIP) {
-	case 4:
-		proxyAddr = fmt.Sprintf("%s:53", *srv)
-
-	case 16:
-		proxyAddr = fmt.Sprintf("[%s]:53", *srv)
-
-	default:
-		log.Fatalf("Invalid proxy address: %s\n", *srv)
-	}
 	fmt.Printf("Starting proxy with DNS server %s\n", proxyAddr)
 
-	proxy, err := dns.NewProxy(proxyAddr, tunnel)
+	proxy, err = dns.NewProxy(proxyAddr, tunnel)
 	if err != nil {
 		log.Fatal(err)
 	}
-	proxy.Verbose = *verboseFlag
+	proxy.Verbose = verbose
 	proxy.Blacklist = blacklist
 
 	if len(*doh) > 0 {
@@ -135,15 +135,15 @@ func main() {
 	}
 	proxy.NoPad = *nopad
 
-	c := make(chan os.Signal, 1)
+	signalC := make(chan os.Signal, 1)
 
 	if *interactive {
-		events := make(chan dns.Event)
-		proxy.Events = events
-		cli.Init(c, events)
-		go cli.EventHandler(events)
+		eventC := make(chan dns.Event)
+		proxy.Events = eventC
+		cli.Init(signalC, eventC)
+		go cli.EventHandler(eventC)
 
-		events <- dns.Event{
+		eventC <- dns.Event{
 			Type:   dns.EventConfig,
 			Labels: []string{proxyAddr},
 		}
@@ -157,77 +157,122 @@ func main() {
 	fmt.Printf("Flushing DNS cache\n")
 	err = dns.FlushCache()
 	if err != nil {
-		log.Printf("Failed to flush DNS cache: %s\n", err)
+		log.Printf("Failed to flush DNS cache: %s", err)
 	}
 
-	signal.Notify(c, os.Interrupt)
+	signal.Notify(signalC, os.Interrupt)
 
+	packetC := make(chan []byte)
 	go func() {
-		s := <-c
-		dns.RestoreServers(origServers)
-		cli.Reset()
-		fmt.Println("signal", s)
-		os.Exit(0)
+		for {
+			data, err := tunnel.Read()
+			if err != nil {
+				log.Fatal(err)
+			}
+			packetC <- data
+		}
 	}()
 
 	for {
-		data, err := tunnel.Read()
-		if err != nil {
-			log.Fatal(err)
-		}
+		select {
+		case s := <-signalC:
+			cli.Reset()
+			dns.RestoreServers(origServers)
+			fmt.Println("signal", s)
+			os.Exit(0)
 
-		// Check IP version.
-		var firstLayerDecoder gopacket.Decoder
-		version := data[0] >> 4
-		switch data[0] >> 4 {
-		case 4:
-			firstLayerDecoder = layers.LayerTypeIPv4
-
-		case 6:
-			firstLayerDecoder = layers.LayerTypeIPv6
-
-		default:
-			log.Printf("Invalid IP version %d\n", version)
-			continue
-		}
-
-		packet := gopacket.NewPacket(data, firstLayerDecoder,
-			gopacket.DecodeOptions{
-				Lazy:   true,
-				NoCopy: true,
-			})
-
-		if layer := packet.Layer(layers.LayerTypeICMPv4); layer != nil {
-			icmp, _ := layer.(*layers.ICMPv4)
-			response, err := ip.ICMPv4Response(packet, icmp)
+		case <-ifmonC:
+			log.Printf("interface change")
+			dns.RestoreServers(origServers)
+			origServers, err = dns.GetServers()
 			if err != nil {
-				fmt.Printf("Failed to create ICMPv4 response: %v\n", err)
-			} else if response != nil {
-				_, err = tunnel.Write(response)
+				// Getting DNS servers can fail. In that case will
+				// wait not set the new server for the proxy below and
+				// wait for a new interface change notification.
+				log.Printf("Failed to get DNS servers: %v", err)
+			}
+			err = dns.SetServers([]string{"192.168.192.254"})
+			if err != nil {
+				log.Fatalf("Failed to set proxy DNS: %s", err)
+			}
+			fmt.Printf("Flushing DNS cache\n")
+			err = dns.FlushCache()
+			if err != nil {
+				log.Printf("Failed to flush DNS cache: %s", err)
+			}
+
+			if len(origServers) > 0 {
+				proxyAddr := makeDNSAddr(origServers[0])
+				log.Printf("DNS server: %v", proxyAddr)
+				err = proxy.SetServer(proxyAddr)
 				if err != nil {
-					fmt.Printf("Failed to send ICMPv4 response: %v\n", err)
+					log.Printf("failed to set DNS server %v: %v",
+						proxyAddr, err)
 				}
 			}
-			continue
-		}
-		if layer := packet.Layer(layers.LayerTypeDNS); layer != nil {
-			dns, _ := layer.(*layers.DNS)
-			if !dns.QR {
-				go func() {
-					err := proxy.Query(packet, dns)
-					if err != nil {
-						fmt.Printf("DNS query failed: %s\n", err)
-					}
-				}()
-			}
-			continue
-		}
 
-		fmt.Printf("Unhandled packet:%s\n", packet)
-		if *verboseFlag > 0 {
-			fmt.Printf("%s", hex.Dump(data))
+		case data := <-packetC:
+			err = handlePacket(data)
+			if err != nil {
+				log.Print(err)
+			}
 		}
 	}
+}
+
+func handlePacket(data []byte) error {
+	// Check IP version.
+	var firstLayerDecoder gopacket.Decoder
+	version := data[0] >> 4
+	switch data[0] >> 4 {
+	case 4:
+		firstLayerDecoder = layers.LayerTypeIPv4
+
+	case 6:
+		firstLayerDecoder = layers.LayerTypeIPv6
+
+	default:
+		return fmt.Errorf("invalid IP version %d", version)
+	}
+
+	packet := gopacket.NewPacket(data, firstLayerDecoder,
+		gopacket.DecodeOptions{
+			Lazy:   true,
+			NoCopy: true,
+		})
+
+	if layer := packet.Layer(layers.LayerTypeICMPv4); layer != nil {
+		icmp, _ := layer.(*layers.ICMPv4)
+		response, err := ip.ICMPv4Response(packet, icmp)
+		if err != nil {
+			return err
+		}
+		if response != nil {
+			_, err = tunnel.Write(response)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+	if layer := packet.Layer(layers.LayerTypeDNS); layer != nil {
+		dns, _ := layer.(*layers.DNS)
+		if !dns.QR {
+			go func() {
+				err := proxy.Query(packet, dns)
+				if err != nil {
+					fmt.Printf("DNS query failed: %s\n", err)
+				}
+			}()
+		}
+		return nil
+	}
+
+	if verbose > 0 {
+		fmt.Printf("Unhandled packet:%s\n", packet)
+		fmt.Printf("%s", hex.Dump(data))
+	}
+	return nil
 }
 
 func readProxyConfig() (*ProxyConfig, error) {
@@ -252,4 +297,33 @@ func readProxyConfig() (*ProxyConfig, error) {
 		return nil, fmt.Errorf("Error parsing '%s': %s", path, err)
 	}
 	return config, nil
+}
+
+func listenInterfaceChanges(c chan bool) {
+	l, err := ifmon.Create()
+	if err != nil {
+		log.Fatal(err)
+	}
+	for {
+		err = l.Wait()
+		if err != nil {
+			log.Fatal(err)
+		}
+		c <- true
+	}
+}
+
+func makeDNSAddr(server string) string {
+	proxyIP := net.ParseIP(server)
+	switch len(proxyIP) {
+	case 4:
+		return fmt.Sprintf("%s:53", server)
+
+	case 16:
+		return fmt.Sprintf("[%s]:53", server)
+
+	default:
+		log.Fatalf("Invalid proxy address: %s", server)
+		return ""
+	}
 }
