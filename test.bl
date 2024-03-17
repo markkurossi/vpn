@@ -42,6 +42,8 @@
 *.taboola.com
 *.unoadsrv.com
 *.brealtime.com
+*.sanoma-sndp.fi
+*.stripe.com
 
 subscribe.washingtonpost.com                                                   3
 **.nile.works
@@ -114,3 +116,4 @@ bcp.crwdcntrl.net
 *.parsely.com
 *.viafoura.net
 in.visitors.live
+pixel.glimr.io
