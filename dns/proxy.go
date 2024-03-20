@@ -146,7 +146,8 @@ func (p *Proxy) Query(packet gopacket.Packet, dns *layers.DNS) error {
 			if qPassthrough {
 				marker = "\u2B50"
 			}
-			fmt.Printf(" %s %s %s %s\n", marker, labels, q.Type, q.Class)
+			fmt.Printf(" %s %s %s[%d] %s\n", marker, labels, q.Type, q.Type,
+				q.Class)
 		}
 		p.event(EventQuery, labels)
 	}
@@ -341,7 +342,8 @@ func (p *Proxy) reader(client *UDPClient) {
 		buffer := gopacket.NewSerializeBuffer()
 		err = gopacket.SerializeLayers(buffer, serializeOptions, response...)
 		if err != nil {
-			log.Printf("Serialization error: %s\n", err)
+			log.Printf("Serialization error: %s", err)
+			log.Printf("Layers: %v", response)
 			continue
 		}
 
