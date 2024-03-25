@@ -242,7 +242,7 @@ func handlePacket(data []byte) error {
 		})
 
 	if layer := packet.Layer(layers.LayerTypeICMPv4); layer != nil {
-		icmp, _ := layer.(*layers.ICMPv4)
+		icmp := layer.(*layers.ICMPv4)
 		response, err := ip.ICMPv4Response(packet, icmp)
 		if err != nil {
 			return err
@@ -256,7 +256,7 @@ func handlePacket(data []byte) error {
 		return nil
 	}
 	if layer := packet.Layer(layers.LayerTypeDNS); layer != nil {
-		dns, _ := layer.(*layers.DNS)
+		dns := layer.(*layers.DNS)
 		if !dns.QR {
 			go func() {
 				err := proxy.Query(packet, dns)
@@ -267,9 +267,17 @@ func handlePacket(data []byte) error {
 		}
 		return nil
 	}
+	// Check for mDNS packets (multicast to 5353).
+	if layer := packet.Layer(layers.LayerTypeUDP); layer != nil {
+		udp := layer.(*layers.UDP)
+		if udp.SrcPort == 5353 && udp.DstPort == 5353 {
+			log.Printf("mDNS:\n%s", hex.Dump(data))
+		}
+		return nil
+	}
 
 	if verbose > 0 {
-		fmt.Printf("Unhandled packet:%s\n", packet)
+		fmt.Printf("Unhandled packet: %s\n", packet)
 		fmt.Printf("%s", hex.Dump(data))
 	}
 	return nil

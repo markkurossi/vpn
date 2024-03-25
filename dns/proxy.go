@@ -146,8 +146,7 @@ func (p *Proxy) Query(packet gopacket.Packet, dns *layers.DNS) error {
 			if qPassthrough {
 				marker = "\u2B50"
 			}
-			fmt.Printf(" %s %s %s[%d] %s\n", marker, labels, q.Type, q.Type,
-				q.Class)
+			fmt.Printf(" %s %s %s %s\n", marker, labels, q.Type, q.Class)
 		}
 		p.event(EventQuery, labels)
 	}
@@ -312,7 +311,11 @@ func (p *Proxy) reader(client *UDPClient) {
 		dns, _ := layer.(*layers.DNS)
 
 		if p.Verbose > 2 {
-			log.Printf("DNS server response:\n%s", hex.Dump(msg))
+			if hasSvcParams(dns) {
+				log.Printf("DNS response with SvcParams:\n%s", hex.Dump(msg))
+			} else {
+				log.Printf("DNS response:\n%s", hex.Dump(msg))
+			}
 		}
 
 		var pending *Pending
@@ -328,6 +331,13 @@ func (p *Proxy) reader(client *UDPClient) {
 			log.Printf("Unknown server response:\n%s", hex.Dump(msg))
 			continue
 		}
+
+		// Filter DNSSvcParamKeyDoHPath and DNSSvcParamKeyDoHURI
+		// responses from DNSTypeSVCB and DNSTypeHTTPS resource
+		// records.
+		dns.Answers = p.filterDoH(dns.Answers)
+		dns.Authorities = p.filterDoH(dns.Authorities)
+		dns.Additionals = p.filterDoH(dns.Additionals)
 
 		// Restore original request ID
 		dns.ID = pending.id
@@ -352,6 +362,54 @@ func (p *Proxy) reader(client *UDPClient) {
 			log.Printf("Failed to write UDP response: %s\n", err)
 		}
 	}
+}
+
+func hasSvcParams(dns *layers.DNS) bool {
+	return hasSvcParamsRR(dns.Answers) || hasSvcParamsRR(dns.Authorities) ||
+		hasSvcParamsRR(dns.Additionals)
+}
+
+func hasSvcParamsRR(rrs []layers.DNSResourceRecord) bool {
+	for _, rr := range rrs {
+		switch rr.Type {
+		case layers.DNSTypeSVCB, layers.DNSTypeHTTPS:
+			if len(rr.SVCB.Params) > 0 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (p *Proxy) filterDoH(
+	rrs []layers.DNSResourceRecord) []layers.DNSResourceRecord {
+
+	var result []layers.DNSResourceRecord
+	for _, rr := range rrs {
+		if !isSvcParamKey(rr, layers.DNSSvcParamKeyDoHPath, p.Verbose > 1) &&
+			!isSvcParamKey(rr, layers.DNSSvcParamKeyDoHURI, p.Verbose > 1) {
+			result = append(result, rr)
+		}
+	}
+	return result
+}
+
+func isSvcParamKey(rr layers.DNSResourceRecord, key layers.DNSSvcParamKey,
+	verbose bool) bool {
+
+	switch rr.Type {
+	case layers.DNSTypeSVCB, layers.DNSTypeHTTPS:
+		for _, param := range rr.SVCB.Params {
+			if param.Key == key {
+				if verbose {
+					log.Printf("%s: found %s:\n%s", rr.Type, key,
+						hex.Dump(param.Value))
+				}
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func udpResponse(packet gopacket.Packet) ([]gopacket.SerializableLayer, error) {
