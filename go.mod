@@ -10,7 +10,7 @@ require (
 	github.com/googleapis/gax-go/v2 v2.12.3 // indirect
 	github.com/markkurossi/cloudsdk v0.0.0-20240319105602-9758cb6f4a2c
 	github.com/markkurossi/go-libs v0.0.0-20240319105352-1454956623da // indirect
-	golang.org/x/net v0.22.0 // indirect
+	golang.org/x/net v0.23.0 // indirect
 	golang.org/x/oauth2 v0.18.0 // indirect
 	golang.org/x/sys v0.18.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
