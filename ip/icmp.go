@@ -1,7 +1,7 @@
 //
 // icmp.go
 //
-// Copyright (c) 2019-2023 Markku Rossi
+// Copyright (c) 2019-2024 Markku Rossi
 //
 // All rights reserved.
 //
@@ -11,8 +11,8 @@ package ip
 import (
 	"errors"
 
-	"github.com/google/gopacket"
-	"github.com/google/gopacket/layers"
+	"github.com/gopacket/gopacket"
+	"github.com/gopacket/gopacket/layers"
 )
 
 // ICMPv4Response creates an ICMPv4 response packet.

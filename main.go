@@ -20,8 +20,8 @@ import (
 	"os/signal"
 	"path"
 
-	"github.com/google/gopacket"
-	"github.com/google/gopacket/layers"
+	"github.com/gopacket/gopacket"
+	"github.com/gopacket/gopacket/layers"
 	"github.com/markkurossi/cloudsdk/api/auth"
 	"github.com/markkurossi/vpn/cli"
 	"github.com/markkurossi/vpn/dns"
